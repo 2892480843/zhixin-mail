@@ -9,8 +9,8 @@
   "platforms": ["macos"],
   "publisher": {
     "name": "明楚涵",
-    "support": "https://github.com/mingchuhan/zhixin-mail",
-    "privacy_policy_url": "https://github.com/mingchuhan/zhixin-mail#privacy"
+    "support": "https://github.com/2892480843/zhixin-mail",
+    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail#privacy"
   },
   "release_notes": "首个版本：来信识别、日程变更提案、回复草稿、单次确认与发件人+动作维度的长期授权、同一事项后续来信合并更新、待办看板与桌面卡片。",
   "age_rating": "all",
