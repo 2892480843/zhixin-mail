@@ -1,0 +1,15 @@
+{
+  "capabilities": [
+    "storage",
+    "mail",
+    "model",
+    "glance"
+  ],
+  "id": "zhixin-mail",
+  "integrity": {
+    "bundle_blake3": "5569fe9e786991d5f22b84b85eb2fad83ef0819bef45a3f3e5486bfc9e6d7f11"
+  },
+  "name": "知信",
+  "schema": 1,
+  "version": "0.1.0"
+}

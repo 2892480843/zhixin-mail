@@ -1,0 +1,838 @@
+// 知信 v0.1 — 从来信中识别安排与变化，提出日程更新和回复草稿，确认后执行
+// 识别: model.complete 结构化提取 + 规则引擎兜底 | 护栏: 引用必须在原文中逐字出现
+// 提案: 同一事项的后续来信更新同一张提案卡 | 授权: 单次确认 / 发件人+动作维度规则
+// 执行: 确认后 mail.send 发送回复, 桌面 glance 卡片聚合待办
+
+let account = nil
+let messages = []
+let proposals = []
+let rules = []
+let screen = "boot"
+let demo_mode = false
+let busy = false
+let status_text = ""
+let current_pid = ""
+let edit_draft = ""
+let model_seen_ok = false
+let mail_seen_ok = false
+
+let ink = #x1c1c1e
+let sub = #x8e8e93
+let blue = #x007aff
+let red = #xd70015
+let green = #x34a853
+let amber = #xb26a00
+let card_bg = #xf7f7f9
+let line = #xe5e5ea
+
+// ---------- 工具 ----------
+
+fn contains(s, sub_s) { return s.search(sub_s) >= 0 }
+
+fn first_char(s) {
+    let chars = s.split("")
+    for c in chars { if c != "" { return c } }
+    return "?"
+}
+
+fn set_status(t) { status_text = t }
+
+fn save_state() {
+    let kept = []
+    for p in proposals {
+        kept.push({id: p.id last_id: p.last_id topic_key: p.topic_key kind: p.kind title: p.title
+            sender: p.sender address: p.address
+            old_v: p.old_v new_v: p.new_v quote: p.quote verified: p.verified
+            ev_title: p.ev_title ev_date: p.ev_date ev_time: p.ev_time ev_loc: p.ev_loc ev_quote: p.ev_quote
+            draft: p.draft reply_to: p.reply_to subject: p.subject
+            status: p.status versions: p.versions updated: p.updated
+            body: p.body preview: p.preview time_label: p.time_label})
+    }
+    fs.write("zhixin.json", {rules: rules proposals: kept}.to_json())
+}
+
+fn load_state() {
+    if fs.exists("zhixin.json") {
+        let v = fs.read("zhixin.json").parse_json()
+        if v != nil {
+            if v.rules != nil { rules = v.rules }
+            if v.proposals != nil { proposals = v.proposals }
+        }
+    }
+}
+
+fn find_proposal(pid) {
+    for p in proposals { if p.id == pid { return p } }
+    return nil
+}
+
+fn find_by_topic(tkey) {
+    for p in proposals {
+        if p.topic_key == tkey && p.status != "done" && p.status != "ignored" { return p }
+    }
+    return nil
+}
+
+fn pending_count() {
+    let n = 0
+    for p in proposals { if p.status == "pending" { n = n + 1 } }
+    return n
+}
+
+fn proposal_for_email(eid) {
+    for p in proposals { if p.id == eid { return p } }
+    for p in proposals { if p.last_id == eid { return p } }
+    return nil
+}
+
+fn rule_matches(address, kind) {
+    for r in rules {
+        if r.address == address && r.kind == kind { return true }
+    }
+    return false
+}
+
+// ---------- 演示数据: 覆盖赛道四类来信, 含同一事项的后续更新 ----------
+
+fn demo_raws() {
+    return [
+        {id: "d1" sender: "橡树学校" address: "school@example.com"
+            subject: "周四接孩子的时间提前了"
+            body: "Alex，你好！\n\n9 月 17 日周四的接孩子时间由 16:00 调整为 15:30。请回复确认已收到新的时间安排。\n\n橡树学校 教务处"
+            time: "09:12" preview: "9 月 17 日周四的接孩子时间由 16:00 调整为 15:30..." unread: true}
+        {id: "d2" sender: "张明远" address: "zhangmy@company.cn"
+            subject: "Q4 项目评审会议邀请"
+            body: "各位同事好，\n\n兹定于 10 月 9 日（周四）14:00 在 3 号会议室举行 Q4 项目评审，议程约 90 分钟。请回复是否参加。\n\n张明远"
+            time: "昨天" preview: "兹定于 10 月 9 日（周四）14:00 在 3 号会议室举行..." unread: true}
+        {id: "d3" sender: "极客优选" address: "service@geekmall.cn"
+            subject: "您的订单 OS-1042 已发货"
+            body: "亲爱的用户：\n\n您的订单 OS-1042 已于今日发出，运单号 JD1234567890，预计 10 月 9 日送达。无需回复。\n\n极客优选 客服中心"
+            time: "昨天" preview: "您的订单 OS-1042 已于今日发出..." unread: false}
+        {id: "d4" sender: "橡树学校" address: "school@example.com"
+            subject: "补充：周四接孩子时间再次调整"
+            body: "Alex，你好！\n\n补充通知：9 月 17 日周四的接孩子时间由 15:30 再次调整为 15:20，请以此为准。此前通知中的 15:30 作废，麻烦重新确认。\n\n橡树学校 教务处"
+            time: "10:05" preview: "补充通知：接孩子时间由 15:30 再次调整为 15:20..." unread: true}
+        {id: "d5" sender: "Sarah Chen" address: "sarah@globaltech.io"
+            subject: "Team sync moved to 3 PM"
+            body: "Hi Alex,\n\nTomorrow's team sync is moved from 2:00 PM to 3:00 PM, same room (B402). Please confirm you can still make it.\n\nThanks,\nSarah"
+            time: "10:20" preview: "Tomorrow's team sync is moved from 2:00 PM to 3:00 PM..." unread: true}
+    ]
+}
+
+// 演示分析结果: 保证 card-host 无服务环境下完整展示赛道闭环
+fn demo_analyze(e) {
+    if e.id == "d1" {
+        return {kind: "schedule_change" topic: "周四接孩子时间" tkey: "school@example.com|周四接孩子"
+            old_v: "9月17日 16:00" new_v: "9月17日 15:30"
+            quote: "9 月 17 日周四的接孩子时间由 16:00 调整为 15:30" verified: true
+            ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            reply_needed: true
+            draft: "老师您好，已收到通知：9 月 17 日周四接孩子时间调整为 15:30，我会按时到。谢谢！"
+            engine: "demo"}
+    }
+    if e.id == "d2" {
+        return {kind: "new_event" topic: "Q4 项目评审" tkey: "zhangmy@company.cn|Q4 项目评审"
+            old_v: "" new_v: ""
+            quote: "" verified: true
+            ev_title: "Q4 项目评审" ev_date: "10月9日 周四" ev_time: "14:00" ev_loc: "3 号会议室"
+            ev_quote: "兹定于 10 月 9 日（周四）14:00 在 3 号会议室举行 Q4 项目评审"
+            reply_needed: true
+            draft: "明远好，10 月 9 日 14:00 的 Q4 评审我可以参加，会前我会准备好汇报材料。"
+            engine: "demo"}
+    }
+    if e.id == "d3" {
+        return {kind: "order" topic: "订单 OS-1042" tkey: "service@geekmall.cn|OS-1042"
+            old_v: "" new_v: "" quote: "" verified: true
+            ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            reply_needed: false draft: "" engine: "demo"}
+    }
+    if e.id == "d4" {
+        return {kind: "schedule_change" topic: "周四接孩子时间" tkey: "school@example.com|周四接孩子"
+            old_v: "9月17日 15:30" new_v: "9月17日 15:20"
+            quote: "9 月 17 日周四的接孩子时间由 15:30 再次调整为 15:20" verified: true
+            ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            reply_needed: true
+            draft: "老师您好，已收到补充通知：接孩子时间以 15:20 为准，我会按时到。谢谢！"
+            engine: "demo"}
+    }
+    return {kind: "schedule_change" topic: "Team sync" tkey: "sarah@globaltech.io|team sync"
+        old_v: "明天 14:00" new_v: "明天 15:00"
+        quote: "Tomorrow's team sync is moved from 2:00 PM to 3:00 PM" verified: true
+        ev_title: "" ev_date: "" ev_time: "" ev_loc: "B402" ev_quote: "same room (B402)"
+        reply_needed: true
+        draft: "Hi Sarah, confirmed — 3:00 PM works for me. See you in B402.\n\nAlex"
+        engine: "demo"}
+}
+
+// ---------- 分析: 规则引擎兜底 ----------
+
+let change_markers = ["改为", "调整为", "提前到", "推迟到", "变更为", "改成", "moved from", "rescheduled", "changed from"]
+let event_keywords = ["会议", "邀请", "meeting", "invite", "评审", "活动", "RSVP", "rsvp"]
+let order_keywords = ["订单", "运单", "order", "shipped", "tracking", "物流", "发货"]
+
+fn has_any(text, words) {
+    for w in words { if contains(text, w) { return true } }
+    return false
+}
+
+// 抽取含变化标记的那一句作为来源引用
+fn quote_line(body, markers) {
+    let lines = body.split("\n")
+    for ln in lines {
+        for m in markers { if contains(ln, m) { return ln.trim() } }
+    }
+    let parts = body.split("。")
+    for pt in parts {
+        for m in markers { if contains(pt, m) { return pt.trim() } }
+    }
+    return ""
+}
+
+fn rule_analyze(e) {
+    let text = e.subject + "\n" + e.body
+    let kind = "other"
+    if has_any(text, order_keywords) { kind = "order" }
+    if has_any(text, change_markers) { kind = "schedule_change" }
+    if kind == "other" && has_any(text, event_keywords) { kind = "new_event" }
+    let quote = ""
+    if kind == "schedule_change" { quote = quote_line(e.body, change_markers) }
+    let need = false
+    if kind == "schedule_change" { need = true }
+    if kind == "new_event" { need = true }
+    if contains(text, "无需回复") { need = false }
+    if contains(text, "no action is needed") { need = false }
+    let draft = ""
+    if need { draft = "您好，已收到「" + e.subject + "」的内容，确认无误。谢谢！" }
+    return {kind: kind topic: e.subject tkey: e.address + "|" + e.subject
+        old_v: "" new_v: "" quote: quote verified: true
+        ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+        reply_needed: need draft: draft engine: "rules"}
+}
+
+// ---------- 分析: model.complete, 输出须过 no-facts 校验 ----------
+
+fn analysis_schema() {
+    return {type: "object"
+        properties: {
+            kind: {type: "string" enum: ["schedule_change", "new_event", "reply_request", "order", "other"]}
+            topic: {type: "string"}
+            change: {type: "object" properties: {old: {type: "string"} new: {type: "string"} quote: {type: "string"}}}
+            event: {type: "object" properties: {title: {type: "string"} date: {type: "string"} time: {type: "string"} location: {type: "string"} quote: {type: "string"}}}
+            reply_needed: {type: "boolean"}
+            draft: {type: "string"}
+        }
+        required: ["kind", "topic", "reply_needed"]}
+}
+
+fn analysis_task() {
+    return "你是邮件分析器，从一封邮件中识别安排与变化。规则：1) kind 只取 schedule_change(已有安排的时间地点被修改) / new_event(新的会议或活动邀请) / reply_request(只要求回复确认) / order(订单物流) / other；2) change.old 与 change.new 是变化前后的值，change.quote 必须逐字摘录 input.body 中包含这次变化的原句，不得改写一个字；3) event 各字段同理，quote 逐字摘自正文；4) reply_needed 表示发件人是否期待回复；5) draft 是一封简短礼貌的中文确认回复草稿（邮件为英文则用英文），只依据正文事实，不得编造正文没有的信息；6) topic 用 4-12 个字概括事项。"
+}
+
+fn verify_quote(body, quote) {
+    if quote == "" { return false }
+    if contains(body, quote) { return true }
+    // 允许模型把换行折叠成空格
+    let flat = body.replace("\n", " ")
+    if contains(flat, quote) { return true }
+    return false
+}
+
+fn analysis_from_model(e, out) {
+    let a = rule_analyze(e)
+    if out.kind != nil { a.kind = out.kind }
+    if out.topic != nil && out.topic != "" { a.topic = out.topic }
+    a.tkey = e.address + "|" + a.topic
+    if out.reply_needed != nil { a.reply_needed = out.reply_needed }
+    if out.draft != nil && out.draft != "" { a.draft = out.draft }
+    if out.change != nil {
+        if out.change.quote != nil && verify_quote(e.body, out.change.quote) {
+            a.quote = out.change.quote
+            a.verified = true
+            if out.change.old != nil { a.old_v = out.change.old }
+            if out.change.new != nil { a.new_v = out.change.new }
+        } else {
+            a.verified = false
+            a.old_v = ""
+            a.new_v = ""
+        }
+    }
+    if out.event != nil {
+        if out.event.quote != nil && verify_quote(e.body, out.event.quote) {
+            a.ev_quote = out.event.quote
+            if out.event.title != nil { a.ev_title = out.event.title }
+            if out.event.date != nil { a.ev_date = out.event.date }
+            if out.event.time != nil { a.ev_time = out.event.time }
+            if out.event.location != nil { a.ev_loc = out.event.location }
+        }
+    }
+    a.engine = "model"
+    return a
+}
+
+// ---------- 提案: 同一事项的后续来信更新同一张卡 ----------
+
+fn upsert_proposal(e, a) {
+    let existing = find_by_topic(a.tkey)
+    if existing != nil && a.kind != "other" && a.kind != "order" {
+        // 后续来信: 更新同一提案, 新版本回到待确认
+        if a.new_v != "" { existing.old_v = a.old_v existing.new_v = a.new_v }
+        if a.quote != "" { existing.quote = a.quote existing.verified = a.verified }
+        if a.ev_title != "" { existing.ev_title = a.ev_title existing.ev_date = a.ev_date existing.ev_time = a.ev_time existing.ev_loc = a.ev_loc existing.ev_quote = a.ev_quote }
+        if a.draft != "" { existing.draft = a.draft }
+        existing.versions = existing.versions + 1
+        existing.updated = true
+        existing.status = "pending"
+        existing.time_label = e.time
+        existing.subject = e.subject
+        existing.body = e.body
+        existing.preview = e.preview
+        existing.last_id = e.id
+        save_state()
+        return existing
+    }
+    let p = {id: e.id last_id: e.id topic_key: a.tkey kind: a.kind title: a.topic
+        sender: e.sender address: e.address
+        old_v: a.old_v new_v: a.new_v quote: a.quote verified: a.verified
+        ev_title: a.ev_title ev_date: a.ev_date ev_time: a.ev_time ev_loc: a.ev_loc ev_quote: a.ev_quote
+        draft: a.draft reply_to: e.address subject: e.subject
+        status: "pending" versions: 1 updated: false
+        body: e.body preview: e.preview time_label: e.time}
+    if !a.reply_needed { p.status = "info" }
+    proposals.push(p)
+    save_state()
+    return p
+}
+
+// ---------- 执行: 确认后发送; 命中规则自动执行 ----------
+
+fn after_analysis(e, a) {
+    let p = upsert_proposal(e, a)
+    if a.reply_needed && rule_matches(e.address, a.kind) {
+        execute_proposal(p.id, true)
+    }
+    publish_glance()
+}
+
+fn execute_proposal(pid, auto) {
+    let p = find_proposal(pid)
+    if p == nil { return }
+    let body = edit_draft
+    if current_pid != pid { body = p.draft }
+    if body == "" { body = p.draft }
+    if demo_mode {
+        p.draft = body
+        if auto { p.status = "auto" } else { p.status = "done" }
+        save_state()
+        refresh_all()
+        return
+    }
+    host.request("mail.send", {account: account.id to: p.reply_to subject: "Re: " + p.subject body: body}, fn(r) {
+        let q = find_proposal(pid)
+        if q == nil { return }
+        if r.is_ok {
+            q.draft = body
+            if auto { q.status = "auto" } else { q.status = "done" }
+        } else {
+            set_status("发送失败：" + r.error)
+        }
+        save_state()
+        refresh_all()
+    })
+}
+
+fn ignore_proposal(pid) {
+    let p = find_proposal(pid)
+    if p == nil { return }
+    p.status = "ignored"
+    save_state()
+    publish_glance()
+    refresh_all()
+}
+
+fn reopen_proposal(pid) {
+    let p = find_proposal(pid)
+    if p == nil { return }
+    p.status = "pending"
+    save_state()
+    publish_glance()
+    refresh_all()
+}
+
+fn add_rule_for(pid) {
+    let p = find_proposal(pid)
+    if p == nil { return }
+    if !rule_matches(p.address, p.kind) {
+        rules.push({address: p.address kind: p.kind sender: p.sender})
+        save_state()
+    }
+    execute_proposal(pid, false)
+}
+
+fn revoke_rule(i) {
+    rules.remove(i)
+    save_state()
+    refresh_all()
+}
+
+// ---------- 桌面 glance 卡片: 待办聚合, 失败静默 ----------
+
+fn glance_script(n) {
+    return "let n = " + n + "\n" +
+        "SolidView{width: Fill height: Fill flow: Down padding: 14 spacing: 6 draw_bg.color: #xffffff\n" +
+        "  Label{text: \"知信 · 待你确认\" draw_text.color: #x8e8e93 draw_text.text_style.font_size: 12}\n" +
+        "  Label{text: \"\" + n + \" 项安排有更新\" draw_text.color: #x1c1c1e draw_text.text_style: theme.font_bold{font_size: 20}}\n" +
+        "  Label{text: \"点按打开知信处理\" draw_text.color: #x007aff draw_text.text_style.font_size: 13}\n" +
+        "}"
+}
+
+fn publish_glance() {
+    let n = pending_count()
+    if n == 0 {
+        host.request("glance.withdraw", {card_id: "zhixin-pending"}, fn(r) {})
+        return
+    }
+    host.request("glance.publish", {
+        card_id: "zhixin-pending"
+        title: "知信 · " + n + " 项待确认"
+        script: glance_script(n)
+        open: {app: "zhixin-mail"}
+        priority: 60
+        expires: 86400
+    }, fn(r) {})
+}
+
+// ---------- 真实邮箱链路 ----------
+
+fn load_accounts() {
+    host.request("mail.accounts", {}, fn(r) {
+        if r.is_ok && r.data != nil && r.data.len() > 0 {
+            account = r.data[0]
+            mail_seen_ok = true
+            screen = "inbox"
+            sync_inbox()
+        } else if r.is_ok {
+            screen = "welcome"
+            refresh_all()
+        } else {
+            // card-host 等无邮件服务环境: 进演示模式
+            load_demo()
+        }
+    })
+}
+
+fn add_account() {
+    set_status("请在弹出的窗口中完成邮箱登录...")
+    refresh_all()
+    host.request("mail.add_account", {}, fn(r) {
+        if r.is_ok {
+            account = r.data
+            mail_seen_ok = true
+            screen = "inbox"
+            sync_inbox()
+        } else {
+            set_status("连接未完成：" + r.error)
+            refresh_all()
+        }
+    })
+}
+
+fn sync_inbox() {
+    if account == nil || busy { return }
+    busy = true
+    set_status("正在同步收件箱...")
+    refresh_all()
+    host.request("mail.sync", {account: account.id folder: "INBOX"}, fn(r) {
+        if r.is_ok { list_inbox() } else { busy = false set_status(r.error) refresh_all() }
+    })
+}
+
+fn list_inbox() {
+    host.request("mail.list", {account: account.id folder: "INBOX" offset: 0 limit: 10}, fn(r) {
+        if r.is_ok {
+            messages = r.data.messages
+            set_status("识别来信中的安排...")
+            fetch_and_analyze(0)
+        } else { busy = false set_status(r.error) refresh_all() }
+    })
+}
+
+fn fetch_and_analyze(i) {
+    if i >= messages.len() {
+        busy = false
+        let n = pending_count()
+        if n > 0 { set_status("" + n + " 项安排待你确认") } else { set_status("没有需要处理的安排") }
+        publish_glance()
+        refresh_all()
+        return
+    }
+    let m = messages[i]
+    if proposal_for_email(m.id) != nil { fetch_and_analyze(i + 1) return }
+    host.request("mail.message", {account: account.id folder: "INBOX" message: m.id}, fn(r) {
+        if r.is_ok {
+            let e = {id: r.data.id sender: r.data.sender address: r.data.address
+                subject: r.data.subject body: r.data.body
+                time: r.data.time preview: r.data.body unread: false}
+            analyze_real(e, i)
+        } else {
+            fetch_and_analyze(i + 1)
+        }
+    })
+}
+
+fn analyze_real(e, i) {
+    host.request("model.complete", {task: analysis_task()
+        input: {subject: e.subject from: e.address body: e.body}
+        schema: analysis_schema() class: "fast"}, fn(r) {
+        if r.is_ok && r.data != nil && r.data.output != nil {
+            model_seen_ok = true
+            after_analysis(e, analysis_from_model(e, r.data.output))
+        } else {
+            after_analysis(e, rule_analyze(e))
+        }
+        fetch_and_analyze(i + 1)
+    })
+}
+
+// ---------- 演示链路: 逐封分析拆帧, 避开 64ms 入口预算 ----------
+
+fn load_demo() {
+    demo_mode = true
+    account = {id: "demo" address: "alex@example.com"}
+    proposals = []
+    screen = "inbox"
+    set_status("演示模式 · 识别来信中的安排...")
+    refresh_all()
+    demo_step(0)
+}
+
+fn demo_step(i) {
+    let raws = demo_raws()
+    if i >= raws.len() {
+        let n = pending_count()
+        set_status("演示模式 · " + n + " 项安排待你确认")
+        publish_glance()
+        refresh_all()
+        return
+    }
+    let e = raws[i]
+    messages.push(e)
+    after_analysis(e, demo_analyze(e))
+    start_timeout(0.02, || demo_step(i + 1))
+}
+
+// ---------- 界面刷新 ----------
+
+fn refresh_all() {
+    ui.content.render()
+    ui.tab_inbox.render()
+    ui.tab_board.render()
+    ui.tab_rules.render()
+}
+
+fn open_detail(pid) {
+    current_pid = pid
+    let p = find_proposal(pid)
+    if p != nil { edit_draft = p.draft }
+    screen = "detail"
+    if !demo_mode && account != nil {
+        host.request("mail.mark_read", {account: account.id folder: "INBOX" message: pid}, fn(r) {})
+    }
+    refresh_all()
+}
+
+fn go_inbox() { screen = "inbox" refresh_all() }
+fn go_board() { screen = "board" refresh_all() }
+fn go_rules() { screen = "rules" refresh_all() }
+fn go_welcome_demo() { load_demo() }
+
+fn kind_label(k) {
+    if k == "schedule_change" { return "安排变更" }
+    if k == "new_event" { return "新日程" }
+    if k == "reply_request" { return "待回复" }
+    if k == "order" { return "订单物流" }
+    return "普通邮件"
+}
+
+fn status_label(p) {
+    if p.status == "pending" { return "待确认" }
+    if p.status == "done" { return "已回复" }
+    if p.status == "auto" { return "已按规则自动处理" }
+    if p.status == "ignored" { return "已忽略" }
+    return "无需处理"
+}
+
+fn status_color(p) {
+    if p.status == "pending" { return amber }
+    if p.status == "done" { return green }
+    if p.status == "auto" { return blue }
+    if p.status == "ignored" { return sub }
+    return sub
+}
+
+// ---------- 启动 ----------
+
+start_timeout(0.05, || {
+    load_state()
+    load_accounts()
+})
+
+// ---------- 界面 ----------
+
+SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
+
+    // 顶栏
+    SolidView{width: Fill height: Fit flow: Down padding: Inset{left: 16 right: 16 top: 14 bottom: 10} spacing: 10 draw_bg.color: #xffffff
+        View{width: Fill height: Fit flow: Right align: Align{y: 0.5}
+            Label{width: Fill text: "知信" draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 26}}
+            ButtonFlat{text: "刷新" height: 32 padding: Inset{left: 12 right: 12} on_click: || {
+                    if demo_mode { load_demo() } else { sync_inbox() }
+                }
+                draw_bg +: {border_radius: 16.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                draw_text +: {color: blue color_hover: blue color_down: blue}}
+        }
+        View{width: Fill height: Fit flow: Right spacing: 8
+            tab_inbox := View{width: Fill height: Fit on_render: || {
+                let active = screen == "inbox" || screen == "detail"
+                let bg = card_bg
+                if active { bg = #xe8f0fe }
+                ButtonFlat{text: "收件箱" width: Fill height: 34 on_click: || go_inbox()
+                    draw_bg +: {border_radius: 17.0 color: bg color_hover: bg color_down: bg border_size: 0.0}
+                    draw_text +: {color: ink color_hover: ink color_down: ink}}
+            }}
+            tab_board := View{width: Fill height: Fit on_render: || {
+                let active = screen == "board"
+                let bg = card_bg
+                if active { bg = #xe8f0fe }
+                ButtonFlat{text: "待办 " + pending_count() width: Fill height: 34 on_click: || go_board()
+                    draw_bg +: {border_radius: 17.0 color: bg color_hover: bg color_down: bg border_size: 0.0}
+                    draw_text +: {color: ink color_hover: ink color_down: ink}}
+            }}
+            tab_rules := View{width: Fill height: Fit on_render: || {
+                let active = screen == "rules"
+                let bg = card_bg
+                if active { bg = #xe8f0fe }
+                ButtonFlat{text: "授权规则" width: Fill height: 34 on_click: || go_rules()
+                    draw_bg +: {border_radius: 17.0 color: bg color_hover: bg color_down: bg border_size: 0.0}
+                    draw_text +: {color: ink color_hover: ink color_down: ink}}
+            }}
+        }
+    }
+    Hr{draw_bg.color: line}
+
+    // 内容
+    content := ScrollYView{width: Fill height: Fill flow: Down padding: 16 spacing: 12 on_render: || {
+
+        if status_text != "" {
+            Label{width: Fill text: status_text draw_text.color: sub draw_text.text_style.font_size: 13}
+        }
+
+        // ===== 欢迎页 =====
+        if screen == "welcome" || screen == "boot" {
+            View{width: Fill height: Fit flow: Down spacing: 14 padding: Inset{top: 40}
+                Label{width: Fill text: "读到一封邮件，也看到下一步可以做什么" draw_text.color: ink
+                    draw_text.text_style: theme.font_bold{font_size: 20}}
+                Label{width: Fill text: "知信从来信中识别安排与变化，提出日程更新和回复草稿，等你确认后执行。"
+                    draw_text.color: sub draw_text.text_style.font_size: 14}
+                ButtonFlat{text: "连接邮箱" width: Fill height: 46 on_click: || add_account()
+                    draw_bg +: {border_radius: 23.0 color: blue color_hover: #x0a84ff color_down: #x0062cc border_size: 0.0}
+                    draw_text +: {color: #xffffff color_hover: #xffffff color_down: #xffffff}}
+                ButtonFlat{text: "先用演示数据体验" width: Fill height: 46 on_click: || go_welcome_demo()
+                    draw_bg +: {border_radius: 23.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                    draw_text +: {color: blue color_hover: blue color_down: blue}}
+            }
+        }
+
+        // ===== 收件箱 =====
+        if screen == "inbox" {
+            if messages.len() == 0 {
+                Label{width: Fill text: "收件箱为空" draw_text.color: sub}
+            }
+            for i in messages.len() {
+                let m = messages[i]
+                let p = proposal_for_email(m.id)
+                GestureView{width: Fill height: Fit flow: Down spacing: 6 padding: 12 on_tap: |x, y| {
+                        if p != nil { open_detail(p.id) }
+                    }
+                    View{width: Fill height: Fit flow: Right align: Align{y: 0.5}
+                        RoundedView{width: 36 height: 36 align: Align{x: 0.5 y: 0.5} draw_bg +: {color: #xe8f0fe border_radius: 18.0}
+                            Label{text: first_char(m.sender) draw_text.color: blue draw_text.text_style: theme.font_bold{font_size: 14}}
+                        }
+                        View{width: Fill height: Fit flow: Down spacing: 2 padding: Inset{left: 10}
+                            Label{width: Fill text: m.sender draw_text.color: sub draw_text.text_style.font_size: 12}
+                            Label{width: Fill text: m.subject draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                        }
+                        Label{text: m.time draw_text.color: sub draw_text.text_style.font_size: 11}
+                    }
+                    if p != nil {
+                        View{width: Fill height: Fit flow: Right spacing: 6 align: Align{y: 0.5}
+                            RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: card_bg border_radius: 9.0}
+                                Label{text: kind_label(p.kind) draw_text.color: sub draw_text.text_style.font_size: 11}
+                            }
+                            RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: card_bg border_radius: 9.0}
+                                Label{text: status_label(p) draw_text.color: status_color(p) draw_text.text_style.font_size: 11}
+                            }
+                            if p.updated {
+                                RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: #xfdf3e3 border_radius: 9.0}
+                                    Label{text: "第 " + p.versions + " 次更新" draw_text.color: amber draw_text.text_style.font_size: 11}
+                                }
+                            }
+                        }
+                    }
+                }
+                Hr{draw_bg.color: line}
+            }
+        }
+
+        // ===== 邮件详情 + 行动卡片 =====
+        if screen == "detail" {
+            let p = find_proposal(current_pid)
+            if p == nil {
+                Label{text: "未找到这封邮件" draw_text.color: sub}
+            }
+            if p != nil {
+                ButtonFlat{text: "← 返回" height: 32 padding: Inset{left: 12 right: 12} on_click: || go_inbox()
+                    draw_bg +: {border_radius: 16.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                    draw_text +: {color: blue color_hover: blue color_down: blue}}
+                View{width: Fill height: Fit flow: Down spacing: 4
+                    Label{width: Fill text: p.sender + " · " + p.address draw_text.color: sub draw_text.text_style.font_size: 12}
+                    Label{width: Fill text: p.subject draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 18}}
+                    Label{width: Fill text: p.time_label draw_text.color: sub draw_text.text_style.font_size: 12}
+                }
+                RoundedView{width: Fill height: Fit padding: 12 draw_bg +: {color: card_bg border_radius: 10.0}
+                    Label{width: Fill text: p.body draw_text.color: ink draw_text.text_style.font_size: 13}
+                }
+
+                if p.kind == "other" || p.kind == "order" || p.status == "info" {
+                    RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
+                        Label{width: Fill text: "识别结果：" + kind_label(p.kind) draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                        Label{width: Fill text: "这封来信没有需要你确认的安排或回复。" draw_text.color: sub draw_text.text_style.font_size: 13}
+                    }
+                }
+
+                if p.kind == "schedule_change" || p.kind == "new_event" || p.kind == "reply_request" {
+                    // 变更 / 日程卡片
+                    RoundedView{width: Fill height: Fit flow: Down spacing: 8 padding: 14 draw_bg +: {color: #xfdf8f0 border_radius: 12.0}
+                        Label{width: Fill text: kind_label(p.kind) + " · " + p.title draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                        if p.old_v != "" && p.new_v != "" {
+                            View{width: Fill height: Fit flow: Right spacing: 8 align: Align{y: 0.5}
+                                Label{text: p.old_v draw_text.color: red draw_text.text_style.font_size: 16}
+                                Label{text: "→" draw_text.color: sub draw_text.text_style.font_size: 16}
+                                Label{text: p.new_v draw_text.color: green draw_text.text_style: theme.font_bold{font_size: 16}}
+                            }
+                        }
+                        if p.ev_title != "" {
+                            Label{width: Fill text: p.ev_title + " · " + p.ev_date + " " + p.ev_time + " · " + p.ev_loc
+                                draw_text.color: ink draw_text.text_style.font_size: 14}
+                        }
+                        if p.quote != "" {
+                            View{width: Fill height: Fit flow: Down spacing: 3 padding: Inset{top: 4}
+                                Label{width: Fill text: "来源 · 邮件原文" draw_text.color: sub draw_text.text_style.font_size: 11}
+                                Label{width: Fill text: "「" + p.quote + "」" draw_text.color: sub draw_text.text_style.font_size: 12}
+                            }
+                        }
+                        if !p.verified {
+                            Label{width: Fill text: "未能在原文中逐字核对该变化，请以原文为准" draw_text.color: red draw_text.text_style.font_size: 12}
+                        }
+                        if p.versions > 1 {
+                            Label{width: Fill text: "这封来信是同一事项的第 " + p.versions + " 次更新，此前的提案已被替换" draw_text.color: amber draw_text.text_style.font_size: 12}
+                        }
+                    }
+
+                    if p.status == "pending" {
+                        // 回复草稿
+                        View{width: Fill height: Fit flow: Down spacing: 6
+                            Label{width: Fill text: "回复草稿 · 发送前可直接修改" draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                            draft_input := TextInput{width: Fill height: 96 text: edit_draft on_change: |text| { edit_draft = text }
+                                draw_bg +: {color: card_bg color_hover: card_bg color_focus: #xffffff border_radius: 10.0}
+                                draw_text +: {color: ink color_hover: ink color_focus: ink color_empty: sub color_empty_hover: sub}}
+                        }
+                        ButtonFlat{text: "确认并发送回复" width: Fill height: 46 on_click: || execute_proposal(current_pid, false)
+                            draw_bg +: {border_radius: 23.0 color: blue color_hover: #x0a84ff color_down: #x0062cc border_size: 0.0}
+                            draw_text +: {color: #xffffff color_hover: #xffffff color_down: #xffffff}}
+                        View{width: Fill height: Fit flow: Right spacing: 8
+                            ButtonFlat{text: "始终允许此类操作" width: Fill height: 40 on_click: || add_rule_for(current_pid)
+                                draw_bg +: {border_radius: 20.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                                draw_text +: {color: blue color_hover: blue color_down: blue}}
+                            ButtonFlat{text: "忽略" width: Fill height: 40 on_click: || ignore_proposal(current_pid)
+                                draw_bg +: {border_radius: 20.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                                draw_text +: {color: sub color_hover: sub color_down: sub}}
+                        }
+                        Label{width: Fill text: "「始终允许」仅对 " + p.address + " 的「" + kind_label(p.kind) + "」生效，可在授权规则中随时撤销"
+                            draw_text.color: sub draw_text.text_style.font_size: 11}
+                    }
+                    if p.status == "done" || p.status == "auto" {
+                        RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 14 draw_bg +: {color: #xf0f9f1 border_radius: 12.0}
+                            Label{width: Fill text: "✓ " + status_label(p) draw_text.color: green draw_text.text_style: theme.font_bold{font_size: 15}}
+                            Label{width: Fill text: "已发送给 " + p.reply_to + "：" draw_text.color: sub draw_text.text_style.font_size: 12}
+                            Label{width: Fill text: p.draft draw_text.color: ink draw_text.text_style.font_size: 13}
+                        }
+                        ButtonFlat{text: "撤销完成，重新处理" width: Fill height: 40 on_click: || reopen_proposal(current_pid)
+                            draw_bg +: {border_radius: 20.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                            draw_text +: {color: sub color_hover: sub color_down: sub}}
+                    }
+                    if p.status == "ignored" {
+                        RoundedView{width: Fill height: Fit padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
+                            Label{width: Fill text: "已忽略 · 邮件仍保留在收件箱" draw_text.color: sub draw_text.text_style.font_size: 14}
+                        }
+                        ButtonFlat{text: "恢复为待确认" width: Fill height: 40 on_click: || reopen_proposal(current_pid)
+                            draw_bg +: {border_radius: 20.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
+                            draw_text +: {color: blue color_hover: blue color_down: blue}}
+                    }
+                }
+            }
+        }
+
+        // ===== 待办看板 =====
+        if screen == "board" {
+            let n = pending_count()
+            if n == 0 {
+                Label{width: Fill text: "没有待确认的安排 · 新来信触发分析后会出现在这里" draw_text.color: sub}
+            }
+            for p in proposals {
+                if p.status == "pending" {
+                    GestureView{width: Fill height: Fit on_tap: |x, y| open_detail(p.id)
+                        RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 14 draw_bg +: {color: #xfdf8f0 border_radius: 12.0}
+                            View{width: Fill height: Fit flow: Right align: Align{y: 0.5}
+                                Label{width: Fill text: p.title draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                                Label{text: p.time_label draw_text.color: sub draw_text.text_style.font_size: 11}
+                            }
+                            Label{width: Fill text: p.sender + " · " + kind_label(p.kind) draw_text.color: sub draw_text.text_style.font_size: 12}
+                            if p.old_v != "" && p.new_v != "" {
+                                View{width: Fill height: Fit flow: Right spacing: 8 align: Align{y: 0.5}
+                                    Label{text: p.old_v draw_text.color: red draw_text.text_style.font_size: 14}
+                                    Label{text: "→" draw_text.color: sub draw_text.text_style.font_size: 14}
+                                    Label{text: p.new_v draw_text.color: green draw_text.text_style: theme.font_bold{font_size: 14}}
+                                }
+                            }
+                            if p.updated {
+                                Label{width: Fill text: "第 " + p.versions + " 次更新 · 提案已按新来信调整" draw_text.color: amber draw_text.text_style.font_size: 12}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ===== 授权规则 =====
+        if screen == "rules" {
+            Label{width: Fill text: "「始终允许」的规则同时限定发件人与动作，不扩展到其他邮件；命中规则的来信会自动执行并记录。"
+                draw_text.color: sub draw_text.text_style.font_size: 12}
+            if rules.len() == 0 {
+                Label{width: Fill text: "还没有授权规则" draw_text.color: sub}
+            }
+            for i in rules.len() {
+                let r = rules[i]
+                RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
+                    Label{width: Fill text: r.sender + " · " + r.address draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 14}}
+                    Label{width: Fill text: "动作：" + kind_label(r.kind) + " → 自动发送确认回复" draw_text.color: sub draw_text.text_style.font_size: 12}
+                    ButtonFlat{text: "撤销这条规则" height: 34 padding: Inset{left: 12 right: 12} on_click: || revoke_rule(i)
+                        draw_bg +: {border_radius: 17.0 color: #xffffff color_hover: line color_down: line border_size: 0.0}
+                        draw_text +: {color: red color_hover: red color_down: red}}
+                }
+            }
+            if pending_count() > 0 {
+                Label{width: Fill text: "提示：撤销规则不影响已完成的回复，只影响之后来信的处理方式。" draw_text.color: sub draw_text.text_style.font_size: 12}
+            }
+        }
+    }}
+}

@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "subtitle": "从来信中识别安排与变化，确认后执行",
+  "description": "知信读取你的来信，识别其中的安排与变化（时间调整、新日程、回复请求），提出日程更新和可直接修改的回复草稿，等你确认后才执行。「始终允许」规则同时限定发件人与动作，可随时撤销；同一事项的后续来信会更新同一张提案卡。每条提取都附邮件原文引用，未逐字核对的内容明确标注。",
+  "category": "productivity",
+  "keywords": ["邮件", "日程", "助理", "mail", "calendar", "agent"],
+  "screenshots": ["screenshots/01-inbox.png", "screenshots/02-detail.png", "screenshots/03-board.png"],
+  "icon": "assets/icon.svg",
+  "platforms": ["macos"],
+  "publisher": {
+    "name": "明楚涵",
+    "support": "https://github.com/mingchuhan/zhixin-mail",
+    "privacy_policy_url": "https://github.com/mingchuhan/zhixin-mail#privacy"
+  },
+  "release_notes": "首个版本：来信识别、日程变更提案、回复草稿、单次确认与发件人+动作维度的长期授权、同一事项后续来信合并更新、待办看板与桌面卡片。",
+  "age_rating": "all",
+  "license": "Apache-2.0"
+}
