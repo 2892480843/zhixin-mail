@@ -7,6 +7,7 @@ let account = nil
 let messages = []
 let proposals = []
 let rules = []
+let events = []
 let screen = "boot"
 let demo_mode = false
 let busy = false
@@ -46,9 +47,10 @@ fn save_state() {
             ev_title: p.ev_title ev_date: p.ev_date ev_time: p.ev_time ev_loc: p.ev_loc ev_quote: p.ev_quote
             draft: p.draft reply_to: p.reply_to subject: p.subject
             status: p.status versions: p.versions updated: p.updated
-            body: p.body preview: p.preview time_label: p.time_label})
+            body: p.body preview: p.preview time_label: p.time_label
+            order_no: p.order_no tracking: p.tracking eta: p.eta order_stage: p.order_stage})
     }
-    fs.write("zhixin.json", {rules: rules proposals: kept}.to_json())
+    fs.write("zhixin.json", {rules: rules proposals: kept events: events}.to_json())
 }
 
 fn load_state() {
@@ -57,6 +59,7 @@ fn load_state() {
         if v != nil {
             if v.rules != nil { rules = v.rules }
             if v.proposals != nil { proposals = v.proposals }
+            if v.events != nil { events = v.events }
         }
     }
 }
@@ -116,6 +119,10 @@ fn demo_raws() {
             subject: "Team sync moved to 3 PM"
             body: "Hi Alex,\n\nTomorrow's team sync is moved from 2:00 PM to 3:00 PM, same room (B402). Please confirm you can still make it.\n\nThanks,\nSarah"
             time: "10:20" preview: "Tomorrow's team sync is moved from 2:00 PM to 3:00 PM..." unread: true}
+        {id: "d6" sender: "极客优选" address: "service@geekmall.cn"
+            subject: "您的订单 OS-1042 已送达"
+            body: "亲爱的用户：\n\n您的订单 OS-1042（运单号 JD1234567890）已于今日 14:30 送达，感谢您的耐心等待。无需回复。\n\n极客优选 客服中心"
+            time: "14:32" preview: "您的订单 OS-1042 已于今日 14:30 送达..." unread: true}
     ]
 }
 
@@ -126,6 +133,7 @@ fn demo_analyze(e) {
             old_v: "9月17日 16:00" new_v: "9月17日 15:30"
             quote: "9 月 17 日周四的接孩子时间由 16:00 调整为 15:30" verified: true
             ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            order_no: "" tracking: "" eta: "" order_stage: ""
             reply_needed: true
             draft: "老师您好，已收到通知：9 月 17 日周四接孩子时间调整为 15:30，我会按时到。谢谢！"
             engine: "demo"}
@@ -136,6 +144,7 @@ fn demo_analyze(e) {
             quote: "" verified: true
             ev_title: "Q4 项目评审" ev_date: "10月9日 周四" ev_time: "14:00" ev_loc: "3 号会议室"
             ev_quote: "兹定于 10 月 9 日（周四）14:00 在 3 号会议室举行 Q4 项目评审"
+            order_no: "" tracking: "" eta: "" order_stage: ""
             reply_needed: true
             draft: "明远好，10 月 9 日 14:00 的 Q4 评审我可以参加，会前我会准备好汇报材料。"
             engine: "demo"}
@@ -144,6 +153,14 @@ fn demo_analyze(e) {
         return {kind: "order" topic: "订单 OS-1042" tkey: "service@geekmall.cn|OS-1042"
             old_v: "" new_v: "" quote: "" verified: true
             ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            order_no: "OS-1042" tracking: "JD1234567890" eta: "10月9日" order_stage: "shipped"
+            reply_needed: false draft: "" engine: "demo"}
+    }
+    if e.id == "d6" {
+        return {kind: "order" topic: "订单 OS-1042" tkey: "service@geekmall.cn|OS-1042"
+            old_v: "" new_v: "" quote: "" verified: true
+            ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            order_no: "OS-1042" tracking: "JD1234567890" eta: "已送达" order_stage: "delivered"
             reply_needed: false draft: "" engine: "demo"}
     }
     if e.id == "d4" {
@@ -151,6 +168,7 @@ fn demo_analyze(e) {
             old_v: "9月17日 15:30" new_v: "9月17日 15:20"
             quote: "9 月 17 日周四的接孩子时间由 15:30 再次调整为 15:20" verified: true
             ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+            order_no: "" tracking: "" eta: "" order_stage: ""
             reply_needed: true
             draft: "老师您好，已收到补充通知：接孩子时间以 15:20 为准，我会按时到。谢谢！"
             engine: "demo"}
@@ -159,6 +177,7 @@ fn demo_analyze(e) {
         old_v: "明天 14:00" new_v: "明天 15:00"
         quote: "Tomorrow's team sync is moved from 2:00 PM to 3:00 PM" verified: true
         ev_title: "" ev_date: "" ev_time: "" ev_loc: "B402" ev_quote: "same room (B402)"
+        order_no: "" tracking: "" eta: "" order_stage: ""
         reply_needed: true
         draft: "Hi Sarah, confirmed — 3:00 PM works for me. See you in B402.\n\nAlex"
         engine: "demo"}
@@ -203,9 +222,21 @@ fn rule_analyze(e) {
     if contains(text, "no action is needed") { need = false }
     let draft = ""
     if need { draft = "您好，已收到「" + e.subject + "」的内容，确认无误。谢谢！" }
+    let order_no = ""
+    let tracking = ""
+    let eta = ""
+    let stage = ""
+    if kind == "order" {
+        if has_any(text, ["已送达", "delivered"]) { stage = "delivered" }
+        if has_any(text, ["已发货", "shipped", "运输"]) && stage == "" { stage = "shipped" }
+        if stage == "" { stage = "placed" }
+        let q = quote_line(e.body, ["预计", "送达", "运单号"])
+        if q != "" { eta = q }
+    }
     return {kind: kind topic: e.subject tkey: e.address + "|" + e.subject
         old_v: "" new_v: "" quote: quote verified: true
         ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
+        order_no: order_no tracking: tracking eta: eta order_stage: stage
         reply_needed: need draft: draft engine: "rules"}
 }
 
@@ -220,12 +251,13 @@ fn analysis_schema() {
             event: {type: "object" properties: {title: {type: "string"} date: {type: "string"} time: {type: "string"} location: {type: "string"} quote: {type: "string"}}}
             reply_needed: {type: "boolean"}
             draft: {type: "string"}
+            order: {type: "object" properties: {order_no: {type: "string"} tracking: {type: "string"} eta: {type: "string"} stage: {type: "string" enum: ["placed", "shipped", "delivered"]} quote: {type: "string"}}}
         }
         required: ["kind", "topic", "reply_needed"]}
 }
 
 fn analysis_task() {
-    return "你是邮件分析器，从一封邮件中识别安排与变化。规则：1) kind 只取 schedule_change(已有安排的时间地点被修改) / new_event(新的会议或活动邀请) / reply_request(只要求回复确认) / order(订单物流) / other；2) change.old 与 change.new 是变化前后的值，change.quote 必须逐字摘录 input.body 中包含这次变化的原句，不得改写一个字；3) event 各字段同理，quote 逐字摘自正文；4) reply_needed 表示发件人是否期待回复；5) draft 是一封简短礼貌的中文确认回复草稿（邮件为英文则用英文），只依据正文事实，不得编造正文没有的信息；6) topic 用 4-12 个字概括事项。"
+    return "你是邮件分析器，从一封邮件中识别安排与变化。规则：1) kind 只取 schedule_change(已有安排的时间地点被修改) / new_event(新的会议或活动邀请) / reply_request(只要求回复确认) / order(订单物流) / other；2) change.old 与 change.new 是变化前后的值，change.quote 必须逐字摘录 input.body 中包含这次变化的原句，不得改写一个字；3) event 各字段同理，quote 逐字摘自正文；4) kind 为 order 时，从正文中逐字摘录订单号、运单号、预计送达时间到 order 字段，stage 判断 placed/shipped/delivered；5) reply_needed 表示发件人是否期待回复；6) draft 是一封简短礼貌的中文确认回复草稿（邮件为英文则用英文），只依据正文事实，不得编造正文没有的信息；7) topic 用 4-12 个字概括事项。"
 }
 
 fn verify_quote(body, quote) {
@@ -265,6 +297,14 @@ fn analysis_from_model(e, out) {
             if out.event.location != nil { a.ev_loc = out.event.location }
         }
     }
+    if out.order != nil {
+        if out.order.quote != nil && verify_quote(e.body, out.order.quote) {
+            if out.order.order_no != nil { a.order_no = out.order.order_no }
+            if out.order.tracking != nil { a.tracking = out.order.tracking }
+            if out.order.eta != nil { a.eta = out.order.eta }
+            if out.order.stage != nil { a.order_stage = out.order.stage }
+        }
+    }
     a.engine = "model"
     return a
 }
@@ -273,15 +313,16 @@ fn analysis_from_model(e, out) {
 
 fn upsert_proposal(e, a) {
     let existing = find_by_topic(a.tkey)
-    if existing != nil && a.kind != "other" && a.kind != "order" {
+    if existing != nil && a.kind != "other" {
         // 后续来信: 更新同一提案, 新版本回到待确认
         if a.new_v != "" { existing.old_v = a.old_v existing.new_v = a.new_v }
         if a.quote != "" { existing.quote = a.quote existing.verified = a.verified }
         if a.ev_title != "" { existing.ev_title = a.ev_title existing.ev_date = a.ev_date existing.ev_time = a.ev_time existing.ev_loc = a.ev_loc existing.ev_quote = a.ev_quote }
+        if a.kind == "order" && a.order_stage != "" { existing.order_stage = a.order_stage existing.order_no = a.order_no existing.tracking = a.tracking existing.eta = a.eta }
         if a.draft != "" { existing.draft = a.draft }
         existing.versions = existing.versions + 1
         existing.updated = true
-        existing.status = "pending"
+        if a.reply_needed { existing.status = "pending" } else { existing.status = "info" }
         existing.time_label = e.time
         existing.subject = e.subject
         existing.body = e.body
@@ -294,6 +335,7 @@ fn upsert_proposal(e, a) {
         sender: e.sender address: e.address
         old_v: a.old_v new_v: a.new_v quote: a.quote verified: a.verified
         ev_title: a.ev_title ev_date: a.ev_date ev_time: a.ev_time ev_loc: a.ev_loc ev_quote: a.ev_quote
+        order_no: a.order_no tracking: a.tracking eta: a.eta order_stage: a.order_stage
         draft: a.draft reply_to: e.address subject: e.subject
         status: "pending" versions: 1 updated: false
         body: e.body preview: e.preview time_label: e.time}
@@ -322,6 +364,7 @@ fn execute_proposal(pid, auto) {
     if demo_mode {
         p.draft = body
         if auto { p.status = "auto" } else { p.status = "done" }
+        if p.kind == "schedule_change" || p.kind == "new_event" { upsert_event(p) }
         save_state()
         refresh_all()
         return
@@ -332,6 +375,7 @@ fn execute_proposal(pid, auto) {
         if r.is_ok {
             q.draft = body
             if auto { q.status = "auto" } else { q.status = "done" }
+            if q.kind == "schedule_change" || q.kind == "new_event" { upsert_event(q) }
         } else {
             set_status("发送失败：" + r.error)
         }
@@ -526,6 +570,7 @@ fn refresh_all() {
     ui.content.render()
     ui.tab_inbox.render()
     ui.tab_board.render()
+    ui.tab_calendar.render()
     ui.tab_rules.render()
 }
 
@@ -542,8 +587,41 @@ fn open_detail(pid) {
 
 fn go_inbox() { screen = "inbox" refresh_all() }
 fn go_board() { screen = "board" refresh_all() }
+fn go_calendar() { screen = "calendar" refresh_all() }
 fn go_rules() { screen = "rules" refresh_all() }
 fn go_welcome_demo() { load_demo() }
+
+fn order_stage_label(s) {
+    if s == "delivered" { return "已送达" }
+    if s == "shipped" { return "运输中" }
+    return "已下单"
+}
+
+fn order_stage_color(s) {
+    if s == "delivered" { return green }
+    if s == "shipped" { return amber }
+    return sub
+}
+
+fn step2_color(s) {
+    if s == "shipped" || s == "delivered" { return green }
+    return line
+}
+
+fn step2_text_color(s) {
+    if s == "shipped" || s == "delivered" { return green }
+    return sub
+}
+
+fn step3_color(s) {
+    if s == "delivered" { return green }
+    return line
+}
+
+fn step3_text_color(s) {
+    if s == "delivered" { return green }
+    return sub
+}
 
 fn kind_label(k) {
     if k == "schedule_change" { return "安排变更" }
@@ -551,6 +629,36 @@ fn kind_label(k) {
     if k == "reply_request" { return "待回复" }
     if k == "order" { return "订单物流" }
     return "普通邮件"
+}
+
+// ---------- 应用内日程板: 先匹配已有事项再更新, 不重复新增 ----------
+
+fn match_event(title) {
+    if title == "" { return nil }
+    for e in events {
+        if contains(e.title, title) || contains(title, e.title) { return e }
+    }
+    return nil
+}
+
+fn event_match_label(p) {
+    if p.status != "pending" { return "" }
+    let e = match_event(p.title)
+    if e == nil { return "" }
+    return "将更新已有日程「" + e.title + "」，不会新增重复日程"
+}
+
+fn upsert_event(p) {
+    let detail = p.new_v
+    if detail == "" { detail = p.ev_date + " " + p.ev_time + " " + p.ev_loc }
+    let matched = match_event(p.title)
+    if matched != nil {
+        if detail != "" { matched.detail = detail }
+        matched.versions = matched.versions + 1
+        return matched
+    }
+    events.push({title: p.title detail: detail versions: 1})
+    return nil
 }
 
 fn status_label(p) {
@@ -604,6 +712,14 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
                 let bg = card_bg
                 if active { bg = #xe8f0fe }
                 ButtonFlat{text: "待办 " + pending_count() width: Fill height: 34 on_click: || go_board()
+                    draw_bg +: {border_radius: 17.0 color: bg color_hover: bg color_down: bg border_size: 0.0}
+                    draw_text +: {color: ink color_hover: ink color_down: ink}}
+            }}
+            tab_calendar := View{width: Fill height: Fit on_render: || {
+                let active = screen == "calendar"
+                let bg = card_bg
+                if active { bg = #xe8f0fe }
+                ButtonFlat{text: "日程 " + events.len() width: Fill height: 34 on_click: || go_calendar()
                     draw_bg +: {border_radius: 17.0 color: bg color_hover: bg color_down: bg border_size: 0.0}
                     draw_text +: {color: ink color_hover: ink color_down: ink}}
             }}
@@ -671,6 +787,11 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
                             RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: card_bg border_radius: 9.0}
                                 Label{text: status_label(p) draw_text.color: status_color(p) draw_text.text_style.font_size: 11}
                             }
+                            if p.kind == "order" && p.order_stage != "" {
+                                RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: card_bg border_radius: 9.0}
+                                    Label{text: order_stage_label(p.order_stage) draw_text.color: order_stage_color(p.order_stage) draw_text.text_style.font_size: 11}
+                                }
+                            }
                             if p.updated {
                                 RoundedView{width: Fit height: Fit padding: Inset{left: 8 right: 8 top: 3 bottom: 3} draw_bg +: {color: #xfdf3e3 border_radius: 9.0}
                                     Label{text: "第 " + p.versions + " 次更新" draw_text.color: amber draw_text.text_style.font_size: 11}
@@ -702,7 +823,39 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
                     Label{width: Fill text: p.body draw_text.color: ink draw_text.text_style.font_size: 13}
                 }
 
-                if p.kind == "other" || p.kind == "order" || p.status == "info" {
+                if p.kind == "order" {
+                    RoundedView{width: Fill height: Fit flow: Down spacing: 8 padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
+                        Label{width: Fill text: "物流追踪 · " + p.title draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                        View{width: Fill height: Fit flow: Right spacing: 10 align: Align{y: 0.5}
+                            View{width: Fill height: Fit flow: Right spacing: 14 align: Align{y: 0.5}
+                                View{width: Fit height: Fit flow: Right spacing: 4 align: Align{y: 0.5}
+                                    RoundedView{width: 10 height: 10 draw_bg +: {color: green border_radius: 5.0}}
+                                    Label{text: "已下单" draw_text.color: green draw_text.text_style.font_size: 12}
+                                }
+                                View{width: Fit height: Fit flow: Right spacing: 4 align: Align{y: 0.5}
+                                    RoundedView{width: 10 height: 10 draw_bg +: {color: step2_color(p.order_stage) border_radius: 5.0}}
+                                    Label{text: "运输中" draw_text.color: step2_text_color(p.order_stage) draw_text.text_style.font_size: 12}
+                                }
+                                View{width: Fit height: Fit flow: Right spacing: 4 align: Align{y: 0.5}
+                                    RoundedView{width: 10 height: 10 draw_bg +: {color: step3_color(p.order_stage) border_radius: 5.0}}
+                                    Label{text: "已送达" draw_text.color: step3_text_color(p.order_stage) draw_text.text_style.font_size: 12}
+                                }
+                            }
+                        }
+                        if p.order_no != "" {
+                            Label{width: Fill text: "订单号 " + p.order_no + " · 运单号 " + p.tracking + " · " + p.eta
+                                draw_text.color: sub draw_text.text_style.font_size: 12}
+                        }
+                        if p.quote != "" {
+                            Label{width: Fill text: "来源 · 「" + p.quote + "」" draw_text.color: sub draw_text.text_style.font_size: 11}
+                        }
+                        if p.versions > 1 {
+                            Label{width: Fill text: "后续物流邮件已更新同一份追踪（第 " + p.versions + " 次更新）" draw_text.color: amber draw_text.text_style.font_size: 12}
+                        }
+                    }
+                }
+
+                if p.kind == "other" || (p.status == "info" && p.kind != "order") {
                     RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
                         Label{width: Fill text: "识别结果：" + kind_label(p.kind) draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
                         Label{width: Fill text: "这封来信没有需要你确认的安排或回复。" draw_text.color: sub draw_text.text_style.font_size: 13}
@@ -735,6 +888,9 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
                         }
                         if p.versions > 1 {
                             Label{width: Fill text: "这封来信是同一事项的第 " + p.versions + " 次更新，此前的提案已被替换" draw_text.color: amber draw_text.text_style.font_size: 12}
+                        }
+                        if event_match_label(p) != "" {
+                            Label{width: Fill text: event_match_label(p) draw_text.color: blue draw_text.text_style.font_size: 12}
                         }
                     }
 
@@ -808,6 +964,24 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: #xffffff
                                 Label{width: Fill text: "第 " + p.versions + " 次更新 · 提案已按新来信调整" draw_text.color: amber draw_text.text_style.font_size: 12}
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // ===== 日程板: 已确认的安排, 按事项去重合并 =====
+        if screen == "calendar" {
+            Label{width: Fill text: "你确认过的安排都在这里。同类变更会更新原事项，不会新增重复日程。"
+                draw_text.color: sub draw_text.text_style.font_size: 12}
+            if events.len() == 0 {
+                Label{width: Fill text: "还没有日程 · 确认一封日程来信后会出现在这里" draw_text.color: sub}
+            }
+            for e in events {
+                RoundedView{width: Fill height: Fit flow: Down spacing: 5 padding: 14 draw_bg +: {color: #xf0f9f1 border_radius: 12.0}
+                    Label{width: Fill text: e.title draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                    Label{width: Fill text: e.detail draw_text.color: ink draw_text.text_style.font_size: 13}
+                    if e.versions > 1 {
+                        Label{width: Fill text: "已更新 " + e.versions + " 次" draw_text.color: amber draw_text.text_style.font_size: 11}
                     }
                 }
             }
