@@ -9,10 +9,10 @@
   "platforms": ["macos"],
   "publisher": {
     "name": "ysmsone",
-    "support": "https://github.com/2892480843/zhixin-mail",
-    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail#privacy"
+    "support": "https://github.com/2892480843/zhixin-mail/blob/main/SUPPORT.md",
+    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail/blob/main/PRIVACY.md"
   },
-  "release_notes": "首个版本：来信识别、日程变更提案、回复草稿、单次确认与发件人+动作维度的长期授权、同一事项后续来信合并更新、待办看板与桌面卡片。",
+  "release_notes": "来信识别、日程变更提案、回复草稿、单次确认与发件人+动作维度的长期授权、同一事项后续来信合并更新、日程板与事项去重、订单物流追踪（同一订单号合并更新）、桌面卡片。每条提取附原文引用并逐字核对。",
   "age_rating": "all",
   "license": "Apache-2.0"
 }

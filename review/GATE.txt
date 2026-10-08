@@ -1,0 +1,9 @@
+$ (cd repo && hub stamp bundle)
+5e34297e60593e488e874e797db6bac352effd333b0249341f4c2ab54e2151d4
+
+$ hub check bundle --allow-unsigned
+zhixin-mail 0.2.1 — PASSED
+  [warning] publisher-signature: unsigned: accountability rests on the hub alone
+  grants: capabilities {"glance", "mail", "model", "storage"}, hosts {}, storage 16777216 bytes, agent none
+
+hub revision: ba36df0505e198f998201af312ff5184df98cae9

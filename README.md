@@ -35,7 +35,7 @@ tools/octo shot 8141 shot.png
 tools/octo check apps/zhixin-mail/bundle
 ```
 
-card-host 中没有邮件与模型服务，应用自动进入**演示模式**：内置 5 封来信（学校时间变更 + 同一事项的后续补充通知、会议邀请、订单发货、英文改期），完整覆盖识别 → 提案 → 授权 → 执行闭环。
+card-host 中没有邮件与模型服务，应用自动进入**演示模式**：内置 6 封来信（学校时间变更 + 同一事项的后续补充通知、会议邀请、订单发货与送达、英文改期），完整覆盖识别 → 提案 → 授权 → 执行 → 日程板 / 物流追踪闭环。
 
 3 分钟评审路径：
 
@@ -62,15 +62,26 @@ card-host 中没有邮件与模型服务，应用自动进入**演示模式**：
 - `card-host` 无 mail/model/glance 服务：演示模式兜底；真实链路在 OctoSense shell（desktop）中验证。
 - 规则引擎兜底只做定性识别（类型 + 引用句），新旧值对比依赖 model.complete 或演示数据。
 
+## 提交与发布状态
+
+| 项 | 值 |
+| --- | --- |
+| App Hub 提交 issue | [OctoSense-App-Hub#106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106)（Submit zhixin-mail，待管理员受理） |
+| 初赛仓库提交 | [hackathon-agenticapp26#13](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13)（队伍：云上码术） |
+| 发布通道 | `publisher-github-v1`：推送 `v<manifest.version>` tag → `.github/workflows/publish-app.yml` 生成经 GitHub 证明的 release pack |
+| 准入门禁 | `hub check` PASSED（见 `review/GATE.txt`），BLAKE3 见 release 里的 receipt |
+| 评审问答 | `review/ANSWERS.md`（`hub scan` 的 7 问，逐条附源码引用） |
+| 隐私 / 支持 | [PRIVACY.md](PRIVACY.md) · [SUPPORT.md](SUPPORT.md) |
+
+上架由 App Hub 管理员在审核后执行受保护目录工作流完成，开发者不直接改 `catalog.json` / `index/` / `artifacts/`。
+
 ## 目录
 
 ```
-bundle/
-  main.splash        应用全部逻辑与界面（OctoScript）
-  manifest.json      id / 版本 / 能力声明
-  listing.json       商店列表资料
-  assets/icon.svg
-  screenshots/       card-host 实拍
+bundle/              提交内容：main.splash / manifest.json / listing.json / assets / screenshots
+.github/workflows/   publish-app.yml：tag push 生成带 GitHub 证明的 release pack
+review/              GATE.txt（门禁输出）+ ANSWERS.md（scan 七问）
+PRIVACY.md SUPPORT.md
 ```
 
 ## 许可证
