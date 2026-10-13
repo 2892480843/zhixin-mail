@@ -122,3 +122,14 @@ git diff --check
 证据：`build/finale-evidence/{send,quality}-v0.3.8-complete.txt`、`native-v0.3.8-published.txt`、`native-v0.3.8-{narrow,wide,connection-final,merged-draft}.txt`、`gate-v0.3.8.json`。开发包摘要 `704aec2eca14d19e405d577a852d94fdeafeeac458409de04092dec709dc0b17`；公开发布证明另由工作流产生。
 
 真实发送失败已定位到宿主 Mail 未登录：实际 Mail 显示 Add account；官方 RC6 的 mail_card.rs:54–57 校验 `os.mail` 活跃账号。QQ 地址与收发服务器已准备，授权码仍需用户直接输入宿主。未修改宿主账号授权文件、未获取密钥、未绕过物理批准。真实邮件截图只保留本机，公开摘要匿名。
+
+
+### 0.3.8 正式发布与提交结果
+
+固定标签 `v0.3.8` / `3b21fc730aa7d2ffd42b4a694a26635cf1d25837` 已推送，GitHub [工作流](https://github.com/2892480843/zhixin-mail/actions/runs/38445812869) prepare/publish 均成功。正式发布使用 App Hub `386359153ed6377b5f047bd9ed2767a6a2ac2bc7`。
+
+下载包 SHA256：`7b431770eb8f25f8c0e3a91d1e7b81f20567d2dee8e925bf5628280f0ed3dd60`，与公开 release-receipt.json 一致；main.splash / listing.json 与标签逐字节一致。GitHub CLI 按仓库和 `.github/workflows/publish-app.yml` 验证签名证明成功；本地兼容工具解包/复验 passed，无 findings。
+
+[App Hub 后续提交](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6152353565)、[云上码术队伍更新](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6152354145) 已发表，正文与本机提交材料回读一致。公开 [Release](https://github.com/2892480843/zhixin-mail/releases/tag/v0.3.8) 说明回读一致，3 个资产保留。不宣称管理员已准入或新评分已出。
+
+发布后仅补充 bundle 外的当前讲稿、界面说明与发布回执；没有移动标签或替换已公开的安装包。匿名公开结果见 [public-release-v0.3.8.json](evidence/public-release-v0.3.8.json)。真实 SMTP、送达和模型质量边界如前。

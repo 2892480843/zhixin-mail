@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "app_id": "zhixin-mail",
+  "version": "0.3.8",
+  "repository": "2892480843/zhixin-mail",
+  "commit": "3b21fc730aa7d2ffd42b4a694a26635cf1d25837",
+  "tag": "v0.3.8",
+  "run": "38445812869",
+  "pack_sha256": "7b431770eb8f25f8c0e3a91d1e7b81f20567d2dee8e925bf5628280f0ed3dd60",
+  "hub_admission": "not granted by this workflow",
+  "submission_issue": "https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106",
+  "app_hub_comment": "https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6152353565",
+  "team_comment": "https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6152354145",
+  "release_notes_readback_matches": true,
+  "issue_and_comments_readback_match": true
+}
