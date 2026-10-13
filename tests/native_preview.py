@@ -30,6 +30,13 @@ SCENES = {
     "14-sync-error": ('demo_mode = false account = {id: "fixture" address: "test@example.com"} proposals = [] messages = [] status_text = "邮箱同步失败：网络连接中断" screen = "inbox" refresh_all()', ["邮箱同步失败", "暂时没有可显示的来信"]),
     "15-order": ('open_detail("d3")', ["物流追踪", "已送达", "JD1234567890"]),
     "16-read-failure": ('demo_mode = false account = {id: "fixture" address: "test@example.com"} proposals = [] messages = [{id: "missing" sender: "测试通知" subject: "待重试的来信" time: "12:00"}] busy = true screen = "inbox" fetch_and_analyze(0) refresh_all()', ["1 封未读取", "刷新重试", "待重试的来信"]),
+    "17-model-fallback": ('let mail = {id: "quality-mail" sender: "测试通知" address: "test@example.com" subject: "项目评审周报" body: "本周项目进入评审阶段，供参考。" preview: "供参考" time: "12:00"} demo_mode = false account = {id: "fixture" address: "test@example.com"} proposals = [] messages = [mail] busy = true screen = "inbox" analyze_real(mail, 0)', ["模型 0 / 规则 1 / 缓存 0", "模型未完成 1", "无需处理"]),
+    "18-order-unknown": ('let p = find_proposal("d3") p.order_stage = "" open_detail("d3")', ["原文未确认物流状态", "物流追踪"]),
+    "19-order-prior-evidence": ('let p = find_proposal("d3") p.quote = "您的包裹已送达。" open_detail("d3")', ["订单号来源（此前原文）", "JD1234567890"]),
+
+    "21-merged-draft": ('let p = find_proposal("d1") p.saved_drafts = [{subject: "此前通知" body: "此前手工修改的回复草稿"}] show_original = true open_detail("d1") show_original = true refresh_all()', ["合并前保存的草稿", "此前手工修改的回复草稿"]),
+    "20-connection": ('demo_mode = false account = {id: "fixture" address: "test@example.com"} proposals = [] messages = [] status_text = "" go_connection()', ["把连接情况", "尚未检查模型服务", "尚未验证真实发送"]),
+
 }
 
 
@@ -49,7 +56,7 @@ def main():
     source = (APP / "bundle/main.splash").read_text(encoding="utf-8")
     selected = {name: SCENES[name] for name in (args.scenes or SCENES)}
     for name, (navigation, expected) in selected.items():
-        scene_size = "412x1600" if name == "07-original" else args.size
+        scene_size = "412x1600" if name in {"07-original", "21-merged-draft"} else args.size
         fixture = root / name
         if fixture.exists():
             raise RuntimeError(f"Use a fresh output directory: {fixture}")
@@ -90,8 +97,8 @@ def main():
                     connect = [w for w in snapshot["s"] if w["ty"] == "Button" and w.get("t") == "连接真实邮箱"]
                     if len(connect) != 1 or connect[0]["r"][3] < 36:
                         raise RuntimeError("Real mailbox connection entry is not fully visible in the demo inbox")
-                if name in ("02-detail", "10-staged-update", "11-welcome"):
-                    primary_label = "连接邮箱" if name == "11-welcome" else "演示确认（不发送）"
+                if name in ("02-detail", "10-staged-update", "11-welcome", "20-connection"):
+                    primary_label = "连接邮箱" if name == "11-welcome" else "打开宿主审阅（发给自己）" if name == "20-connection" else "演示确认（不发送）"
                     actions = [w for w in snapshot["s"] if w["ty"] == "Button" and w.get("t") == primary_label]
                     if len(actions) != 1:
                         raise RuntimeError(f"Missing primary action in {name}")

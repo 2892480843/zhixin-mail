@@ -3,6 +3,190 @@ import sys
 from test_send_flow import main
 
 CASES = {
+    'legacy_reply_cards_merge_using_current_inbox_order': '''
+proposals = []
+let old_mail = {id: "old-thread" sender: "通知" address: "person@example.com" subject: "项目会议" body: "请回复确认会议安排。" preview: "" time: "昨天"}
+let new_mail = {id: "new-thread" sender: "通知" address: "person@example.com" subject: "Re: 项目会议" body: "最新通知：无需回复。" preview: "" time: "今天"}
+let old_p = upsert_proposal(old_mail, rule_analyze(old_mail))
+old_p.draft = "My prior edited draft"
+let new_a = rule_analyze(new_mail)
+new_a.tkey = "person@example.com|Re: 项目会议"
+let new_p = upsert_proposal(new_mail, new_a)
+old_p.analysis_revision = 0 new_p.analysis_revision = 0
+save_state() load_state()
+messages = [new_mail old_mail]
+current_pid = old_mail.id screen = "detail" edit_draft = old_p.draft
+reconcile_rule_topics()
+assert(proposals.len() == 1 && pending_count() == 0)
+let merged = proposal_for_email(old_mail.id)
+assert(merged.last_id == new_mail.id && merged.body == new_mail.body)
+assert(current_pid == merged.id && edit_draft == merged.draft)
+assert(merged.saved_drafts[0].body == "My prior edited draft")
+save_state() load_state()
+assert(proposals[0].saved_drafts[0].body == "My prior edited draft")
+true
+''',
+
+    'reversed_clock_sentence_does_not_invent_direction': '''
+let mail = {subject: "会议改期" body: "会议调整为 15:00（原定 14:00）。" address: "person@example.com"}
+let a = rule_analyze(mail)
+assert(a.old_v == "" && a.new_v == "")
+true
+''',
+    'negated_delivery_and_shipping_are_not_completed': '''
+assert(evidenced_order_stage("Your order has not been delivered.") == "")
+assert(evidenced_order_stage("Your order has not yet shipped.") == "")
+assert(evidenced_order_stage("Your order has not been shipped.") == "")
+assert(evidenced_order_stage("Your order hasn't been shipped.") == "")
+assert(evidenced_order_stage("Your order is scheduled to be shipped tomorrow.") == "")
+assert(evidenced_order_stage("Your order is undelivered.") == "")
+assert(evidenced_order_stage("Your order is scheduled to be delivered tomorrow.") == "")
+assert(evidenced_order_stage("Your order will soon be delivered.") == "")
+assert(evidenced_order_stage("Your order has been delivered.") == "delivered")
+assert(evidenced_order_stage("Your order has been shipped.") == "shipped")
+true
+''',
+    'old_unproven_order_stage_is_removed_on_migration': '''
+p.engine = "rules" p.analysis_revision = 0 p.kind = "order" p.order_stage = "placed"
+p.subject = "订单提醒" p.body = "查看您的订单详情。"
+save_state() load_state()
+assert(find_proposal(e.id).order_stage == "")
+true
+''',
+    'legacy_model_identifiers_keep_prior_source_before_quote_update': '''
+proposals = []
+let first = demo_raws()[2]
+let original = upsert_proposal(first, demo_analyze(first))
+original.engine = "model" original.order_no_quote = "" original.tracking_quote = ""
+let next = demo_raws()[5]
+let a = demo_analyze(next)
+a.order_no = "" a.tracking = "" a.quote = "您的包裹已送达。"
+upsert_proposal(next, a)
+assert(contains(original.tracking_quote, original.tracking))
+true
+''',
+    'case_insensitive_english_reply_and_clock_change': '''
+let mail = {subject: "Meeting time" body: "The meeting is MOVED FROM 2:00 PM TO 3:00 PM. PLEASE CONFIRM." address: "person@example.com"}
+let a = rule_analyze(mail)
+assert(a.reply_needed && a.old_v == "2:00 PM" && a.new_v == "3:00 PM")
+true
+''',
+    "rule_extracts_only_literal_two_clock_change": '''
+let a = rule_analyze(e)
+assert(a.old_v == "16:00" && a.new_v == "15:30")
+assert(contains(e.body, a.quote) && a.verified)
+true
+''',
+    "ambiguous_three_clocks_are_not_guessed": '''
+let mail = {subject: "会议时间调整" body: "会议时间由 14:00 调整为 15:00，16:00 结束。" address: "person@example.com"}
+let a = rule_analyze(mail)
+assert(a.old_v == "" && a.new_v == "")
+true
+''',
+    'notification_footer_does_not_make_review_newsletter_actionable': '''
+let mail = {subject: "项目评审周报" body: "本周项目进入评审阶段，供参考。\nReply to this email directly, view it on GitHub, or unsubscribe." address: "notify@example.com"}
+let a = rule_analyze(mail)
+assert(a.kind == "other" && a.reply_needed == false)
+true
+''',
+    'quoted_old_request_is_not_a_new_request': '''
+let mail = {subject: "资料归档" body: "仅供存档。\n> 下周会议邀请，请回复确认。" address: "archive@example.com"}
+let a = rule_analyze(mail)
+assert(a.reply_needed == false)
+true
+''',
+    'explicit_reply_request_without_event_is_actionable': '''
+let mail = {subject: "材料核对" body: "请回复确认材料是否齐全。" address: "person@example.com"}
+let a = rule_analyze(mail)
+assert(a.kind == "reply_request" && a.reply_needed && a.draft != "")
+true
+''',
+    'api_change_is_not_a_schedule_change': '''
+let mail = {subject: "API 更新说明" body: "接口由 mail.send 调整为 mail.review_send，仅供开发参考。" address: "dev@example.com"}
+let a = rule_analyze(mail)
+assert(a.kind == "other" && !a.reply_needed)
+true
+''',
+    'reply_prefixes_merge_same_thread_and_update_classification': '''
+proposals = []
+let first = {id: "n1" subject: "项目同步" body: "资料已归档。" address: "person@example.com" sender: "Person" preview: "" time: "09:00"}
+let original = upsert_proposal(first, rule_analyze(first))
+let next = {id: "n2" subject: "Re: 回复：项目同步" body: "邀请参加项目会议，请回复是否参加。" address: first.address sender: first.sender preview: "" time: "10:00"}
+let updated = upsert_proposal(next, rule_analyze(next))
+assert(proposals.len() == 1 && updated.id == original.id)
+assert(updated.kind == "new_event" && updated.status == "pending")
+true
+''',
+    'latest_no_reply_notice_clears_pending_in_same_card': '''
+let a = demo_analyze(e)
+a.kind = "other" a.reply_needed = false a.draft = ""
+let next = demo_raws()[3]
+let updated = upsert_proposal(next, a)
+assert(updated.id == p.id && proposals.len() == 1)
+assert(p.kind == "other" && p.status == "info")
+true
+''',
+    'model_delivery_stage_uses_verified_quote': '''
+let mail = {subject: "包裹动态" body: "包裹已经签收，感谢使用。" address: "shop@example.com"}
+let a = analysis_from_model(mail, {kind: "order" topic: "包裹" reply_needed: false
+    order: {stage: "delivered" quote: "包裹已经签收，感谢使用。"}})
+assert(a.order_stage == "delivered")
+true
+''',
+    'future_delivery_is_not_delivered': '''
+let mail = {subject: "Order update" body: "Your order will be delivered tomorrow." address: "shop@example.com"}
+let a = analysis_from_model(mail, {kind: "order" topic: "Order" reply_needed: false
+    order: {stage: "delivered" quote: "Your order will be delivered tomorrow."}})
+assert(a.order_stage == "" && a.verified == false)
+true
+''',
+    'new_logistics_notice_keeps_verified_identifiers_when_absent': '''
+proposals = []
+let first = demo_raws()[2]
+let original = upsert_proposal(first, demo_analyze(first))
+let next = demo_raws()[5]
+let a = demo_analyze(next)
+a.order_no = "" a.tracking = ""
+upsert_proposal(next, a)
+assert(original.order_stage == "delivered")
+assert(original.order_no == "OS-1042" && original.tracking == "JD1234567890")
+assert(contains(original.order_no_quote, original.order_no))
+assert(contains(original.tracking_quote, original.tracking))
+save_state() load_state()
+let restored = find_proposal(first.id)
+assert(contains(restored.tracking_quote, restored.tracking))
+true
+''',
+    'unknown_logistics_stage_is_not_labelled_placed': '''
+assert(order_stage_label("") == "状态待核对")
+true
+''',
+    'older_rule_records_are_reassessed_without_erasing_edited_draft': '''
+p.engine = "rules" p.analysis_revision = 0
+p.kind = "new_event" p.subject = "项目评审周报" p.body = "本周进入评审阶段，供参考。"
+p.draft = "Saved custom draft"
+save_state()
+load_state()
+let restored = find_proposal(e.id)
+assert(restored.status == "info" && restored.kind == "other")
+assert(restored.draft == "Saved custom draft")
+true
+''',
+    'failed_model_call_reports_rule_fallback_in_current_sync': '''
+messages = [e]
+proposals = [] busy = true
+analyze_real(e, 0)
+requests[0].cb({is_ok: false data: nil error: "Model unavailable"})
+assert(contains(analysis_summary(), "规则 1"))
+assert(contains(analysis_summary(), "模型未完成 1"))
+true
+''',
+    'one_reply_prefix_is_used_in_reviewed_subject': '''
+p.subject = "Re: RE: 学校通知"
+execute_proposal(p.id, false)
+assert(requests[0].args.subject == "Re: 学校通知")
+true
+''',
     "failed_message_read_is_visible_and_keeps_existing_proposals": '''
 messages = [{id: "unread-message"}]
 busy = true
@@ -30,10 +214,12 @@ true
 screen = "detail"
 edit_draft = "Saved before account switch"
 let previous_path = state_path()
+connection_send_status = "已接受测试发送"
 add_account()
 requests[0].cb({is_ok: true data: {id: "second-account" address: "second@example.com"} error: ""})
 assert(files[previous_path].parse_json().proposals[0].draft == "Saved before account switch")
 assert(state_path() != previous_path && proposals.len() == 0)
+assert(connection_send_status == "尚未验证真实发送")
 true
 ''',
     "account_discovery_clears_demo_mail_even_if_live_sync_fails": '''

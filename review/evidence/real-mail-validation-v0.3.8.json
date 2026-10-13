@@ -1,0 +1,31 @@
+{
+  "schema": 1,
+  "date": "2026-10-14",
+  "platform": "macOS arm64",
+  "host": {
+    "version": "0.1.0-rc.6",
+    "build": "20261011.114033",
+    "source": "f9f6fea90b52182790cb2641fd0145c425af4d84"
+  },
+  "app_version": "0.3.8",
+  "installed_source_matches": true,
+  "catalog_scope": "isolated local signed catalog sequence 9; not public admission",
+  "observed": {
+    "account_connection_preserved": true,
+    "recent_messages_displayed": 10,
+    "pending_proposals_before": 4,
+    "pending_proposals_after": 0,
+    "model_fixed_text_probe": "not_ready",
+    "self_test_host_review_opened": true,
+    "self_test_human_approved": true,
+    "self_test_result": "host rejected: Mail account signed out; no accepted receipt",
+    "native_mail_signed_in": false
+  },
+  "not_verified": [
+    "self-test acceptance receipt",
+    "self-test received in inbox",
+    "real model quality",
+    "continuous recording"
+  ],
+  "privacy": "Public summary omits account IDs, addresses, email content and credentials."
+}

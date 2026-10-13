@@ -31,6 +31,53 @@ edit_draft = "Edited reply"
 requests = []
 '''
 CASES = {
+    'self_test_uses_current_account_and_native_review': '''
+check_mail_send()
+assert(requests.len() == 1 && requests[0].method == "mail.review_send")
+assert(requests[0].args.to == account.address && requests[0].args.subject == "知信邮箱连通性测试")
+assert(p.status == "pending")
+true
+''',
+    'self_test_cancel_does_not_add_history': '''
+check_mail_send()
+requests[0].cb({is_ok: false data: nil error: "cancelled"})
+assert(sent_replies.len() == 0 && reviewing_pid == "")
+assert(contains(connection_send_status, "取消"))
+true
+''',
+    'self_test_acceptance_does_not_claim_delivery_or_finish_proposals': '''
+check_mail_send()
+requests[0].cb({is_ok: true data: {accepted: true id: "test-receipt"} error: ""})
+assert(sent_replies.len() == 1 && sent_replies[0].reply_to == account.address)
+assert(p.status == "pending" && events.len() == 0)
+assert(contains(connection_send_status, "接受") && contains(connection_send_status, "核对是否收到"))
+true
+''',
+    'self_test_is_blocked_during_sync_review_or_demo': '''
+busy = true check_mail_send() busy = false
+reviewing_pid = p.id check_mail_send() reviewing_pid = ""
+demo_mode = true check_mail_send()
+assert(requests.len() == 0)
+true
+''',
+    'model_connection_check_uses_fixed_non_mail_input': '''
+check_model_connection()
+assert(requests.len() == 1 && requests[0].method == "model.complete")
+assert(requests[0].args.input == "connection-check")
+requests[0].cb({is_ok: true data: {output: {ready: true}} error: ""})
+assert(contains(connection_model_status, "已响应"))
+true
+''',
+    'model_check_failure_is_visible_and_allows_deliberate_retry': '''
+check_model_connection()
+check_model_connection()
+assert(requests.len() == 1)
+requests[0].cb({is_ok: false data: nil error: "Missing API key"})
+assert(contains(connection_model_status, "未就绪"))
+check_model_connection()
+assert(requests.len() == 2)
+true
+''',
     "manual_send_requests_native_review_with_edited_body": '''
 execute_proposal(p.id, false)
 assert(requests.len() == 1)

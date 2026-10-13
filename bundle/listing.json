@@ -22,10 +22,10 @@
   ],
   "publisher": {
     "name": "ysmsone",
-    "support": "https://github.com/2892480843/zhixin-mail/blob/v0.3.7/SUPPORT.md",
-    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail/blob/v0.3.7/PRIVACY.md"
+    "support": "https://github.com/2892480843/zhixin-mail/blob/v0.3.8/SUPPORT.md",
+    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail/blob/v0.3.8/PRIVACY.md"
   },
-  "release_notes": "0.3.7：真实收件同步不再静默跳过读取失败的来信，显示未读取数量和刷新重试提示，保留已有提案；下一次同步清除旧警告。保留温暖生活助手界面、日期/时间分行、原文核对、账号隔离和宿主发送审阅。真实邮箱须在宿主认证，授权码由用户在官方邮箱设置生成。",
+  "release_notes": "0.3.8：减少通知页脚和旧邮件引用造成的误待办；补齐明确回复请求、回复主题归一化与同卡分类更新。规则仅提取原文中恰好两个时刻；物流状态依据原文，保留单号及此前引用来源。显示本次模型/规则/缓存计数，重审旧规则记录并保留人工草稿。每次真实发送仍由宿主审阅。 新增连接检查：固定文本检查模型响应，给当前账号自己的测试邮件经宿主审阅后发送。",
   "age_rating": "all",
   "license": "Apache-2.0"
 }

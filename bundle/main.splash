@@ -1,7 +1,9 @@
-// 知信 v0.3.7 — 从来信中识别安排与变化，提出日程更新和回复草稿，审阅后执行
+// 知信 v0.3.8 — 从来信中识别安排与变化，提出日程更新和回复草稿，审阅后执行
 // 识别: model.complete 结构化提取 + 规则引擎兜底 | 护栏: 引用必须在原文中逐字出现
 // 提案: 同一事项的后续来信更新同一张提案卡 | 授权: 单次确认 / 发件人+动作维度规则
 // 执行: mail.review_send 交给宿主审阅; accepted 回执后完成, 桌面 glance 聚合待办
+
+use mod.std.regex
 
 let account = nil
 let messages = []
@@ -17,6 +19,13 @@ let edit_draft = ""
 let model_seen_ok = false
 let mail_seen_ok = false
 let mail_read_failures = 0
+let sync_models = 0
+let sync_rules = 0
+let sync_cached = 0
+let sync_model_failures = 0
+let connection_model_status = "尚未检查模型服务"
+let connection_send_status = "尚未验证真实发送"
+let connection_model_busy = false
 let reviewing_pid = ""
 let glance_status = ""
 let storage_notice = ""
@@ -95,7 +104,9 @@ fn save_state() {
             status: p.status versions: p.versions updated: p.updated
             body: p.body preview: p.preview time_label: p.time_label
             order_no: p.order_no tracking: p.tracking eta: p.eta order_stage: p.order_stage
-            engine: p.engine receipt_accepted: p.receipt_accepted review_note: p.review_note})
+            order_no_quote: text_field(p, "order_no_quote", "") tracking_quote: text_field(p, "tracking_quote", "")
+            saved_drafts: field_value(p, "saved_drafts", [])
+            analysis_revision: field_value(p, "analysis_revision", 0) engine: p.engine receipt_accepted: p.receipt_accepted review_note: p.review_note})
     }
     fs.write(path, {schema: 1 account_id: account.id demo: demo_mode rules: rules proposals: kept events: events sent_replies: sent_replies}.to_json())
 }
@@ -118,6 +129,74 @@ fn load_state() {
     } else if !demo_mode && fs.exists("zhixin.json") {
         storage_notice = "旧版状态未绑定邮箱，原文件已保留；请重新同步来信"
     }
+    migrate_rule_records()
+    return nil
+}
+
+fn migrate_rule_records() {
+    for p in proposals {
+        if p.engine == "rules" && field_value(p, "analysis_revision", 0) != 1 {
+            let a = rule_analyze({subject: p.subject body: p.body address: p.address})
+            p.order_stage = ""
+            apply_analysis(p, a)
+            if p.status == "pending" && !a.reply_needed { p.status = "info" }
+            if p.status == "info" && a.reply_needed { p.status = "pending" }
+        }
+    }
+    return nil
+}
+
+// 仅在宿主新到旧快照能证明先后时合并旧规则卡；缺失历史不猜顺序。
+fn inbox_position(eid) {
+    let i = 0
+    for m in messages { if m.id == eid { return i } i = i + 1 }
+    return -1
+}
+
+fn duplicate_rule_index(cards, p) {
+    let i = 0
+    for q in cards { if q.engine == "rules" && q.topic_key == p.topic_key { return i } i = i + 1 }
+    return -1
+}
+
+fn has_message_id(ids, eid) {
+    for id in ids { if id == eid { return true } }
+    return false
+}
+
+fn preserve_merged_record(winner, prior) {
+    let seen = field_value(winner, "message_ids", [winner.id winner.last_id])
+    for eid in field_value(prior, "message_ids", [prior.id prior.last_id]) { if !has_message_id(seen, eid) { seen.push(eid) } }
+    winner.message_ids = seen
+    let drafts = field_value(winner, "saved_drafts", [])
+    for draft in field_value(prior, "saved_drafts", []) { drafts.push(draft) }
+    if prior.draft != "" && prior.draft != winner.draft { drafts.push({subject: prior.subject body: prior.draft}) }
+    winner.saved_drafts = drafts
+    winner.versions = winner.versions + prior.versions
+    winner.updated = true
+    if current_pid == prior.id { current_pid = winner.id edit_draft = winner.draft }
+}
+
+fn reconcile_rule_topics() {
+    let merged = []
+    for p in proposals {
+        let idx = -1
+        if p.engine == "rules" { idx = duplicate_rule_index(merged, p) }
+        if idx < 0 { merged.push(p) } else {
+            let prior = merged[idx]
+            let prior_pos = inbox_position(prior.last_id)
+            let pos = inbox_position(p.last_id)
+            if pos < 0 || prior_pos < 0 {
+                merged.push(p)
+                storage_notice = "旧主题重复且来源不在当前收件列表，请分别核对；已保留草稿"
+            } else if pos < prior_pos {
+                preserve_merged_record(p, prior)
+                merged[idx] = p
+            } else { preserve_merged_record(prior, p) }
+        }
+    }
+    proposals = merged
+    save_state()
     return nil
 }
 
@@ -210,14 +289,14 @@ fn demo_analyze(e) {
     }
     if e.id == "d3" {
         return {kind: "order" topic: "订单 OS-1042" tkey: "service@geekmall.cn|OS-1042"
-            old_v: "" new_v: "" quote: "" verified: true
+            old_v: "" new_v: "" quote: quote_line(e.body, ["运单号"]) verified: true
             ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
             order_no: "OS-1042" tracking: "JD1234567890" eta: "10月9日" order_stage: "shipped"
             reply_needed: false draft: "" engine: "demo"}
     }
     if e.id == "d6" {
         return {kind: "order" topic: "订单 OS-1042" tkey: "service@geekmall.cn|OS-1042"
-            old_v: "" new_v: "" quote: "" verified: true
+            old_v: "" new_v: "" quote: quote_line(e.body, ["运单号"]) verified: true
             ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
             order_no: "OS-1042" tracking: "JD1234567890" eta: "已送达" order_stage: "delivered"
             reply_needed: false draft: "" engine: "demo"}
@@ -245,58 +324,132 @@ fn demo_analyze(e) {
 // ---------- 分析: 规则引擎兜底 ----------
 
 let change_markers = ["改为", "调整为", "提前到", "推迟到", "变更为", "改成", "moved from", "rescheduled", "changed from"]
-let event_keywords = ["会议", "邀请", "meeting", "invite", "评审", "活动", "RSVP", "rsvp"]
-let order_keywords = ["订单", "运单", "order", "shipped", "tracking", "物流", "发货"]
+let event_keywords = ["会议", "meeting", "invite", "邀请", "评审", "活动", "日程", "appointment", "rsvp"]
+let order_keywords = ["订单", "运单", "order", "shipped", "tracking", "物流", "发货", "包裹"]
+let reply_markers = ["请回复", "请确认", "请告知", "请反馈", "请答复", "please reply", "please confirm", "please respond", "please let me know", "rsvp"]
+let schedule_words = ["时间", "安排", "会议", "接孩子", "活动", "日程", "meeting", "schedule", "appointment", "pickup", "pick-up", "sync", "time"]
 
 fn has_any(text, words) {
-    for w in words { if contains(text, w) { return true } }
+    for w in words { if text.search(regex(w, "i")) >= 0 { return true } }
     return false
 }
 
-// 抽取含变化标记的那一句作为来源引用
+fn canonical_subject(subject) {
+    let topic = subject.trim()
+    // 限制前缀层数，避免畸形超长主题占用入口预算。
+    for pass in [0 1 2 3 4 5 6 7] {
+        let previous = topic
+        for prefix in ["Re:", "RE:", "re:", "回复:", "回复：", "答复:", "答复："] {
+            if topic.search(prefix) == 0 { topic = topic.strip_prefix(prefix).trim() }
+        }
+        if topic == previous { break }
+    }
+    if topic == "" { return "无主题" }
+    return topic
+}
+
+fn reply_subject(subject) { return "Re: " + canonical_subject(subject) }
+
+fn request_body(body) {
+    let current = ""
+    for ln in body.split("\n") {
+        let text = ln.trim()
+        if text.search("Reply to this email directly") == 0 || text.search("You are receiving this because") == 0 || text.search("原始邮件") == 0 || (text.search("On ") == 0 && contains(text, "wrote:")) { break }
+        if text.search(">") == 0 { continue }
+        current = current + ln + "\n"
+    }
+    return current
+}
+
 fn quote_line(body, markers) {
-    let lines = body.split("\n")
-    for ln in lines {
-        for m in markers { if contains(ln, m) { return ln.trim() } }
-    }
-    let parts = body.split("。")
-    for pt in parts {
-        for m in markers { if contains(pt, m) { return pt.trim() } }
-    }
+    for ln in body.split("\n") { if has_any(ln, markers) { return ln.trim() } }
+    for pt in body.split("。") { if has_any(pt, markers) { return pt.trim() } }
+    return ""
+}
+
+fn evidenced_order_stage(text) {
+    if has_any(text, ["已送达", "已经送达", "已签收", "已经签收", "签收成功", "(^|[^a-z])delivered($|[^a-z])"]) && !has_any(text, ["未送达", "未签收", "not.{0,24}delivered", "isn't delivered", "hasn't been delivered", "will.{0,24}delivered", "scheduled.{0,24}delivered", "expected", "estimated"]) { return "delivered" }
+    if has_any(text, ["已发货", "已经发货", "已发出", "已经发出", "(^|[^a-z])shipped($|[^a-z])", "运输中"]) && !has_any(text, ["未发货", "not.{0,24}shipped", "hasn't.{0,24}shipped", "isn't.{0,24}shipped", "scheduled.{0,24}shipped", "expected.{0,24}shipped", "will.{0,24}shipped"]) { return "shipped" }
+    if has_any(text, ["已下单", "下单成功", "订单已确认", "order confirmed", "order placed"]) { return "placed" }
     return ""
 }
 
 fn rule_analyze(e) {
-    let text = e.subject + "\n" + e.body
+    let body = request_body(e.body)
+    let text = e.subject + "\n" + body
     let kind = "other"
-    if has_any(text, order_keywords) { kind = "order" }
-    if has_any(text, change_markers) { kind = "schedule_change" }
-    if kind == "other" && has_any(text, event_keywords) { kind = "new_event" }
     let quote = ""
-    if kind == "schedule_change" { quote = quote_line(e.body, change_markers) }
-    let need = false
-    if kind == "schedule_change" { need = true }
-    if kind == "new_event" { need = true }
-    if contains(text, "无需回复") { need = false }
-    if contains(text, "no action is needed") { need = false }
-    let draft = ""
-    if need { draft = "您好，已收到「" + e.subject + "」的通知，我会核对相关安排后再确认。谢谢！" }
-    let order_no = ""
-    let tracking = ""
-    let eta = ""
-    let stage = ""
-    if kind == "order" {
-        if has_any(text, ["已送达", "已签收", "签收成功", "delivered"]) { stage = "delivered" }
-        if has_any(text, ["已发货", "shipped", "运输"]) && stage == "" { stage = "shipped" }
-        if stage == "" { stage = "placed" }
-        let q = quote_line(e.body, ["预计", "送达", "运单号"])
-        if q != "" { eta = q }
+    let need = has_any(text, reply_markers)
+    if has_any(text, order_keywords) { kind = "order" }
+    let changed = quote_line(body, change_markers)
+    if changed != "" && has_any(changed, schedule_words) { kind = "schedule_change" quote = changed need = true }
+    if kind == "other" && need {
+        if has_any(text, event_keywords) { kind = "new_event" } else { kind = "reply_request" }
+        quote = quote_line(body, reply_markers)
     }
-    return {kind: kind topic: e.subject tkey: e.address + "|" + e.subject
-        old_v: "" new_v: "" quote: quote verified: true
+    if has_any(text, ["无需回复", "不必回复", "no action is needed", "no reply needed", "do not reply"]) { need = false }
+    let draft = ""
+    if need { draft = "您好，已收到「" + canonical_subject(e.subject) + "」的通知，我会核对原文后再回复。谢谢！" }
+    let old_v = "" let new_v = ""
+    if kind == "schedule_change" {
+        let clocks = quote.match_all(regex("(?:[01]?[0-9]|2[0-3])[:：][0-5][0-9](?: ?[APap][Mm])?", "g"))
+        // 只展示原文中恰好两个时刻；多个时刻不猜哪两个是改期。
+        if clocks.len() == 2 {
+            let direction = quote.search(regex("改为|调整为|提前到|推迟到|变更为|改成| to ", "i"))
+            if clocks[0].index < direction && clocks[1].index > direction { old_v = clocks[0].value new_v = clocks[1].value }
+        }
+    }
+    let eta = "" let stage = ""
+    if kind == "order" {
+        stage = evidenced_order_stage(body)
+        let q = quote_line(body, ["预计", "送达", "运单号", "签收", "shipped", "delivered"])
+        if q != "" { eta = q quote = q }
+    }
+    return {kind: kind topic: canonical_subject(e.subject) tkey: e.address + "|" + canonical_subject(e.subject)
+        old_v: old_v new_v: new_v quote: quote verified: true
         ev_title: "" ev_date: "" ev_time: "" ev_loc: "" ev_quote: ""
-        order_no: order_no tracking: tracking eta: eta order_stage: stage
+        order_no: "" tracking: "" eta: eta order_stage: stage
         reply_needed: need draft: draft engine: "rules"}
+}
+
+// ---------- 连接检查: 固定测试内容, 发送仍经宿主审阅 ----------
+
+fn check_model_connection() {
+    if connection_model_busy || busy || reviewing_pid != "" { return }
+    connection_model_busy = true
+    connection_model_status = "正在检查模型服务..."
+    refresh_all()
+    host.request("model.complete", {task: "仅返回符合 schema 的对象，ready 为 true。"
+        input: "connection-check" schema: {type: "object" properties: {ready: {type: "boolean"}} required: ["ready"]} class: "fast"}, fn(r) {
+        connection_model_busy = false
+        let output = field_value(r.data, "output", nil)
+        if r.is_ok && field_value(output, "ready", false) == true {
+            connection_model_status = "模型已响应固定测试文本；来信分析质量仍需核对"
+        } else { connection_model_status = "模型未就绪，请在宿主 AI Providers 配置后重新检查" }
+        refresh_all()
+    })
+}
+
+fn check_mail_send() {
+    if busy || reviewing_pid != "" || demo_mode || account == nil { return }
+    let target = account.address
+    let subject = "知信邮箱连通性测试"
+    let body = "这是一封知信邮箱连通性测试邮件。\n用于验证宿主审阅后的发送与收信。\n无需回复。"
+    reviewing_pid = "__connection_test__"
+    connection_send_status = "请在宿主核对收件人和测试正文；取消不会发送"
+    refresh_all()
+    host.request("mail.review_send", {account: account.id to: target subject: subject body: body}, fn(r) {
+        reviewing_pid = ""
+        if r.is_ok && field_value(r.data, "accepted", false) == true {
+            sent_replies.push({title: "邮箱连通性测试" reply_to: target body: body
+                proposal_id: "" message_id: "" version: 0 receipt_id: text_field(r.data, "id", "")})
+            save_state()
+            connection_send_status = "宿主已接受测试发送，请刷新收件箱核对是否收到"
+        } else if !r.is_ok && contains(r.error, "cancel") {
+            connection_send_status = "已取消测试审阅，未发送；没有新增发送记录"
+        } else { connection_send_status = "测试发送未确认，请先核对已发送邮件再决定是否重试" }
+        refresh_all()
+    })
 }
 
 // ---------- 分析: model.complete, 输出须过 no-facts 校验 ----------
@@ -337,6 +490,7 @@ fn analysis_from_model(e, out) {
     let need = field_value(out, "reply_needed", nil)
     if (kind != "schedule_change" && kind != "new_event" && kind != "reply_request" && kind != "order" && kind != "other") || topic == "" || (need != true && need != false) { return a }
     a.kind = kind
+    if kind == "other" && need { a.kind = "reply_request" }
     a.topic = topic
     a.tkey = e.address + "|" + a.topic
     a.reply_needed = need
@@ -377,6 +531,10 @@ fn analysis_from_model(e, out) {
         let quote = text_field(order, "quote", "")
         if verify_quote(e.body, quote) {
             a.quote = quote
+            let declared_stage = text_field(order, "stage", "")
+            let observed_stage = evidenced_order_stage(quote)
+            a.order_stage = observed_stage
+            if declared_stage != "" && declared_stage != observed_stage { a.verified = false }
             let order_no = text_field(order, "order_no", "")
             let tracking = text_field(order, "tracking", "")
             let eta = text_field(order, "eta", "")
@@ -386,7 +544,7 @@ fn analysis_from_model(e, out) {
             if a.order_no != order_no || a.tracking != tracking || a.eta != eta { a.verified = false }
         } else {
             a.verified = false
-            a.order_no = "" a.tracking = "" a.eta = ""
+            a.order_no = "" a.tracking = "" a.eta = "" a.order_stage = ""
         }
     }
     a.engine = "model"
@@ -407,11 +565,33 @@ fn is_older_in_inbox(eid, latest) {
     return incoming_index >= 0 && latest_index >= 0 && incoming_index > latest_index
 }
 
+fn evidence_quote(quote, value) {
+    if value != "" && contains(quote, value) { return quote }
+    return ""
+}
+
+fn apply_analysis(p, a) {
+    // 覆盖最新引用前回填旧版已核对标识的来源，后续通知可以只报告状态。
+    if text_field(p, "order_no_quote", "") == "" { p.order_no_quote = evidence_quote(p.quote, p.order_no) }
+    if text_field(p, "tracking_quote", "") == "" { p.tracking_quote = evidence_quote(p.quote, p.tracking) }
+    p.kind = a.kind p.title = a.topic p.topic_key = a.tkey
+    p.old_v = a.old_v p.new_v = a.new_v p.quote = a.quote p.verified = a.verified
+    p.ev_title = a.ev_title p.ev_date = a.ev_date p.ev_time = a.ev_time p.ev_loc = a.ev_loc p.ev_quote = a.ev_quote
+    if a.kind == "order" {
+        if a.order_stage != "" { p.order_stage = a.order_stage }
+        if a.order_no != "" { p.order_no = a.order_no p.order_no_quote = evidence_quote(a.quote, a.order_no) }
+        if a.tracking != "" { p.tracking = a.tracking p.tracking_quote = evidence_quote(a.quote, a.tracking) }
+        if a.eta != "" { p.eta = a.eta }
+    } else { p.order_stage = "" p.order_no = "" p.tracking = "" p.eta = "" }
+    p.engine = a.engine
+    p.analysis_revision = 1
+}
+
 fn upsert_proposal(e, a) {
     let known = proposal_for_email(e.id)
     if known != nil { return known }
     let existing = find_by_topic(a.tkey)
-    if existing != nil && a.kind != "other" {
+    if existing != nil {
         let seen = field_value(existing, "message_ids", [existing.id existing.last_id])
         seen.push(e.id)
         existing.message_ids = seen
@@ -421,10 +601,7 @@ fn upsert_proposal(e, a) {
             return existing
         }
         // 后续来信: 更新同一提案, 新版本回到待确认
-        existing.old_v = a.old_v existing.new_v = a.new_v
-        existing.quote = a.quote existing.verified = a.verified
-        existing.ev_title = a.ev_title existing.ev_date = a.ev_date existing.ev_time = a.ev_time existing.ev_loc = a.ev_loc existing.ev_quote = a.ev_quote
-        if a.kind == "order" && a.order_stage != "" { existing.order_stage = a.order_stage existing.order_no = a.order_no existing.tracking = a.tracking existing.eta = a.eta }
+        apply_analysis(existing, a)
         if a.draft != "" { existing.draft = a.draft }
         existing.versions = existing.versions + 1
         existing.updated = true
@@ -446,10 +623,11 @@ fn upsert_proposal(e, a) {
         old_v: a.old_v new_v: a.new_v quote: a.quote verified: a.verified
         ev_title: a.ev_title ev_date: a.ev_date ev_time: a.ev_time ev_loc: a.ev_loc ev_quote: a.ev_quote
         order_no: a.order_no tracking: a.tracking eta: a.eta order_stage: a.order_stage
+        order_no_quote: evidence_quote(a.quote, a.order_no) tracking_quote: evidence_quote(a.quote, a.tracking)
         draft: a.draft reply_to: e.address subject: e.subject
         status: "pending" versions: 1 updated: false
         body: e.body preview: e.preview time_label: e.time
-        engine: a.engine receipt_accepted: false review_note: ""}
+        analysis_revision: 1 engine: a.engine receipt_accepted: false review_note: ""}
     if !a.reply_needed { p.status = "info" }
     proposals.push(p)
     save_state()
@@ -517,7 +695,7 @@ fn execute_proposal(pid, auto) {
     set_status("请在宿主窗口核对收件人和正文，再批准发送；取消会保留提案")
     save_state()
     refresh_all()
-    host.request("mail.review_send", {account: account.id to: p.reply_to subject: "Re: " + p.subject body: body}, fn(r) {
+    host.request("mail.review_send", {account: account.id to: p.reply_to subject: reply_subject(p.subject) body: body}, fn(r) {
         reviewing_pid = ""
         let q = find_proposal(pid)
         // 可选回执须为对象，不把成功打开审阅或格式错误当成已发送。
@@ -642,8 +820,10 @@ fn activate_account(next) {
     messages = []
     current_pid = "" edit_draft = "" show_original = false
     model_seen_ok = false
+    sync_models = 0 sync_rules = 0 sync_cached = 0 sync_model_failures = 0
     demo_staged = false demo_stage = 0
     account = next
+    connection_send_status = "尚未验证真实发送"
     mail_seen_ok = true
     demo_mode = false
     load_state()
@@ -689,6 +869,7 @@ fn sync_inbox() {
     stash_draft()
     busy = true
     mail_read_failures = 0
+    sync_models = 0 sync_rules = 0 sync_cached = 0 sync_model_failures = 0
     set_status("正在同步收件箱...")
     refresh_all()
     host.request("mail.sync", {account: account.id folder: "INBOX"}, fn(r) {
@@ -700,6 +881,7 @@ fn list_inbox() {
     host.request("mail.list", {account: account.id folder: "INBOX" offset: 0 limit: 10}, fn(r) {
         if r.is_ok {
             messages = r.data.messages
+            reconcile_rule_topics()
             set_status("识别来信中的安排...")
             fetch_and_analyze(0)
         } else { busy = false set_status(r.error) refresh_all() }
@@ -720,7 +902,7 @@ fn fetch_and_analyze(i) {
     }
     // mail.list 的宿主缓存为新到旧；先分析旧来信，最后一封才是当前安排。
     let m = messages[messages.len() - 1 - i]
-    if proposal_for_email(m.id) != nil { fetch_and_analyze(i + 1) return }
+    if proposal_for_email(m.id) != nil { sync_cached = sync_cached + 1 fetch_and_analyze(i + 1) return }
     host.request("mail.message", {account: account.id folder: "INBOX" message: m.id}, fn(r) {
         if r.is_ok {
             let e = {id: r.data.id sender: r.data.sender address: r.data.address
@@ -741,9 +923,10 @@ fn analyze_real(e, i) {
         let output = field_value(r.data, "output", nil)
         if r.is_ok && output != nil {
             let a = analysis_from_model(e, output)
-            if a.engine == "model" { model_seen_ok = true }
+            if a.engine == "model" { model_seen_ok = true sync_models = sync_models + 1 } else { sync_rules = sync_rules + 1 sync_model_failures = sync_model_failures + 1 }
             after_analysis(e, a)
         } else {
+            sync_rules = sync_rules + 1 sync_model_failures = sync_model_failures + 1
             after_analysis(e, rule_analyze(e))
         }
         fetch_and_analyze(i + 1)
@@ -857,6 +1040,7 @@ fn go_inbox() { stash_draft() screen = "inbox" refresh_all() }
 fn go_board() { stash_draft() screen = "board" refresh_all() }
 fn go_calendar() { stash_draft() screen = "calendar" refresh_all() }
 fn go_rules() { stash_draft() screen = "rules" refresh_all() }
+fn go_connection() { stash_draft() screen = "connection" refresh_all() }
 fn go_history() { stash_draft() screen = "history" refresh_all() }
 fn go_welcome_demo() { load_demo() }
 
@@ -868,6 +1052,13 @@ fn original_button_text() {
 fn send_button_text() {
     if demo_mode { return "演示确认（不发送）" }
     return "审阅并发送回复"
+}
+
+fn analysis_summary() {
+    if demo_mode || busy || sync_models + sync_rules + sync_cached == 0 { return "" }
+    let summary = "本次识别 · 模型 " + sync_models + " / 规则 " + sync_rules + " / 缓存 " + sync_cached
+    if sync_model_failures > 0 { summary = summary + "\n模型未完成 " + sync_model_failures + " 封，已改用规则识别" }
+    return summary
 }
 
 fn engine_label(p) {
@@ -883,7 +1074,8 @@ fn engine_label(p) {
 fn order_stage_label(s) {
     if s == "delivered" { return "已送达" }
     if s == "shipped" { return "运输中" }
-    return "已下单"
+    if s == "placed" { return "已下单" }
+    return "状态待核对"
 }
 
 fn order_stage_color(s) {
@@ -1061,7 +1253,16 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: page_bg
                 }
             }
         } else if account != nil {
-            Label{padding: 0 width: Fill text: "当前邮箱 · " + account.address draw_text.color: sub draw_text.text_style.font_size: 11}
+            View{width: Fill height: Fit flow: Right spacing: 8 align: Align{y: 0.5}
+                Label{padding: 0 width: Fill text: "当前邮箱 · " + account.address draw_text.color: sub draw_text.text_style.font_size: 11}
+                ButtonFlat{margin: 0 text: "连接检查" height: 32 padding: Inset{left: 8 right: 8} draw_text.text_style.font_size: 11 on_click: || go_connection()
+                    draw_bg +: {color: card_bg color_hover: blue_bg color_down: line border_radius: 6.0 border_size: 0.0}
+                    draw_text +: {color: blue color_hover: blue color_down: blue}}
+            }
+        }
+
+        if !demo_mode && (screen == "inbox" || screen == "board") && analysis_summary() != "" {
+            Label{padding: 0 width: Fill text: analysis_summary() draw_text.color: sub draw_text.text_style.font_size: 10}
         }
 
         let normal_status = status_text == "" + pending_count() + " 项安排待你确认" || status_text == "演示模式 · " + pending_count() + " 项安排待你确认" || status_text == "没有需要处理的安排"
@@ -1109,6 +1310,30 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: page_bg
                     draw_text +: {color: blue color_hover: blue color_down: blue}}
                 Label{padding: 0 width: Fill text: "登录在宿主窗口完成，知信不接触授权码。" draw_text.color: sub draw_text.text_style.font_size: 11}
             }
+        }
+
+        if screen == "connection" && account != nil && !demo_mode {
+            Label{padding: 0 width: Fill text: "把连接情况，确认清楚。" draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 20}}
+            RoundedView{width: Fill height: Fit flow: Down spacing: 10 padding: 14 draw_bg +: {color: card_bg border_radius: 10.0}
+                Label{padding: 0 width: Fill text: "收信 · 当前显示 " + messages.len() + " 封来信" draw_text.color: ink draw_text.text_style.font_size: 14}
+                Label{padding: 0 width: Fill text: "点击顶栏刷新同步；读取失败会显示重试提示。" draw_text.color: sub draw_text.text_style.font_size: 12}
+                Label{padding: 0 width: Fill text: connection_model_status draw_text.color: sub draw_text.text_style.font_size: 12}
+                ButtonFlat{margin: 0 text: "检查模型（仅发送固定测试文本）" width: Fill height: 40 draw_text.text_style.font_size: 12 on_click: || check_model_connection()
+                    draw_bg +: {color: blue_bg color_hover: line color_down: line border_radius: 8.0 border_size: 0.0}
+                    draw_text +: {color: blue color_hover: blue color_down: blue}}
+            }
+            RoundedView{width: Fill height: Fit flow: Down spacing: 10 padding: 14 draw_bg +: {color: card_bg border_radius: 10.0}
+                Label{padding: 0 width: Fill text: "给自己发一封测试邮件" draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                Label{padding: 0 width: Fill text: "收件人：" + account.address + "\n主题：知信邮箱连通性测试\n正文仅说明连通性测试，无需回复。" draw_text.color: sub draw_text.text_style.font_size: 12}
+                Label{padding: 0 width: Fill text: connection_send_status draw_text.color: amber draw_text.text_style.font_size: 12}
+                ButtonFlat{margin: 0 text: "打开宿主审阅（发给自己）" width: Fill height: 46 draw_text.text_style.font_size: 12 on_click: || check_mail_send()
+                    draw_bg +: {color: blue color_hover: #x0a84ff color_down: #x0062cc border_radius: 8.0 border_size: 0.0}
+                    draw_text +: {color: #xffffff color_hover: #xffffff color_down: #xffffff}}
+                Label{padding: 0 width: Fill text: "宿主批准后才发送；接受回执不等于送达，需在收件箱核对。" draw_text.color: sub draw_text.text_style.font_size: 11}
+            }
+            ButtonFlat{margin: 0 text: "返回收件箱" height: 36 draw_text.text_style.font_size: 12 on_click: || go_inbox()
+                draw_bg +: {color: card_bg color_hover: blue_bg color_down: line border_radius: 8.0 border_size: 0.0}
+                draw_text +: {color: blue color_hover: blue color_down: blue}}
         }
 
         // ===== 收件箱 =====
@@ -1194,6 +1419,9 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: page_bg
                 if p.kind == "order" {
                     RoundedView{width: Fill height: Fit flow: Down spacing: 8 padding: 14 draw_bg +: {color: card_bg border_radius: 12.0}
                         Label{padding: 0 width: Fill text: "物流追踪 · " + p.title draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 15}}
+                        if p.order_stage == "" {
+                            Label{padding: 0 width: Fill text: "原文未确认物流状态，请核对邮件。" draw_text.color: amber draw_text.text_style.font_size: 12}
+                        } else {
                         View{width: Fill height: Fit flow: Right spacing: 10 align: Align{y: 0.5}
                             View{width: Fill height: Fit flow: Right spacing: 14 align: Align{y: 0.5}
                                 View{width: Fit height: Fit flow: Right spacing: 4 align: Align{y: 0.5}
@@ -1210,9 +1438,18 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: page_bg
                                 }
                             }
                         }
+                        }
                         if p.order_no != "" {
                             Label{padding: 0 width: Fill text: "订单号 " + p.order_no + " · 运单号 " + p.tracking + " · " + p.eta
                                 draw_text.color: sub draw_text.text_style.font_size: 12}
+                        }
+                        let number_quote = text_field(p, "order_no_quote", "")
+                        let tracking_quote = text_field(p, "tracking_quote", "")
+                        if number_quote != "" && number_quote != p.quote {
+                            Label{padding: 0 width: Fill text: "订单号来源（此前原文）\n「" + number_quote + "」" draw_text.color: sub draw_text.text_style.font_size: 11}
+                        }
+                        if tracking_quote != "" && tracking_quote != p.quote && tracking_quote != number_quote {
+                            Label{padding: 0 width: Fill text: "运单号来源（此前原文）\n「" + tracking_quote + "」" draw_text.color: sub draw_text.text_style.font_size: 11}
                         }
                         if p.quote != "" {
                             Label{padding: 0 width: Fill text: "来源 · 「" + p.quote + "」" draw_text.color: sub draw_text.text_style.font_size: 11}
@@ -1331,6 +1568,12 @@ SolidView{width: Fill height: Fill flow: Down draw_bg.color: page_bg
                     draw_bg +: {border_radius: 8.0 color: card_bg color_hover: line color_down: line border_size: 0.0}
                     draw_text +: {color: blue color_hover: blue color_down: blue}}
                 if show_original {
+                    for draft in field_value(p, "saved_drafts", []) {
+                        RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 12 draw_bg +: {color: card_bg border_radius: 10.0}
+                            Label{padding: 0 width: Fill text: "合并前保存的草稿 · " + draft.subject draw_text.color: sub draw_text.text_style.font_size: 12}
+                            Label{padding: 0 width: Fill text: draft.body draw_text.color: ink draw_text.text_style.font_size: 13}
+                        }
+                    }
                     RoundedView{width: Fill height: Fit flow: Down spacing: 6 padding: 12 draw_bg +: {color: card_bg border_radius: 10.0}
                         Label{padding: 0 width: Fill text: "邮件原文 · " + p.subject draw_text.color: ink draw_text.text_style: theme.font_bold{font_size: 13}}
                         Label{padding: 0 width: Fill text: p.body draw_text.color: ink draw_text.text_style.font_size: 13}

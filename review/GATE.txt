@@ -1,3 +1,5 @@
-zhixin-mail 0.3.7 — PASSED
-  [warning] publisher-signature: unsigned: accountability rests on the hub alone
-  grants: capabilities {"glance", "mail", "model", "storage"}, hosts {}, storage 16777216 bytes, agent none
+zhixin-mail 0.3.8 — PASSED (local development structural gate)
+Digest: 704aec2eca14d19e405d577a852d94fdeafeeac458409de04092dec709dc0b17
+Capabilities: glance, mail, model, storage
+Warning: unsigned development bundle; final GitHub publisher attestation is validated separately.
+Scanner: seven-question packet generated; no external model reviewer executed.
