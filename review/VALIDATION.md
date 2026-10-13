@@ -138,3 +138,12 @@ git diff --check
 ### 最新版展示媒体
 
 新增 48 秒 / 1080×1920 原生界面截图演示，采用 8 个 card-host 虚构数据场景，H.264 编码及默认中文字幕轨；完整视频解码成功。正式上传后下载 SHA256 与本机一致：`bccc799aa8c7731727ac6c05ea0cd25b50c6f5071ec63e1c82de854461734033`。各源截图摘要见 [native-preview-v0.3.8.json](evidence/native-preview-v0.3.8.json)。这是静态截图序列，不是连续操作录屏，也不能替代真实宿主 SMTP、送达、模型或 glance 演示。
+
+
+### 两分钟普通话操作录屏
+
+120 秒 / 1080×1920，实际独立 card-host 窗口录制后剪辑，再配普通话女声。31 段字幕烧录，另提供 SRT 和可选字幕轨。完整解码无错误，音频峰值 -1.5 dB；公开上传后回下载 MP4、SRT、验证记录均逐字节匹配。视频 SHA256：`411c26d80e96506aadabe113da0c60148abc6cd567087fdcad0bbcb32db9dd9c`。详见 [媒体验证记录](evidence/two-minute-mandarin-v0.3.8.json)。
+
+使用内置虚构数据，含切换剪辑和速度调整，未发送真实邮件。此媒体不验证真实模型、SMTP 送达或桌面 glance；日程仍为应用内记录。应用来源保持 v0.3.8 固定标签及安装包，本次仅补充展示媒体。
+
+视频已补充至 [App Hub #106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6157246168) 和 [云上码术队伍提交帖](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6157246562)；Release、正文与评论回读完全一致，原 6 项资产及固定 tag 均保留。公开提交回执见 [two-minute-video-submission-v0.3.8.json](evidence/two-minute-video-submission-v0.3.8.json)。不代表赛务已接收或纳入评分。

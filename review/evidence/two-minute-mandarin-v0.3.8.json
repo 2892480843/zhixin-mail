@@ -1,0 +1,167 @@
+{
+  "version": "0.3.8",
+  "created_on": "2026-10-14",
+  "platform": "macOS Darwin 25.6.0 arm64",
+  "scope": "Actual isolated native Card host window recordings, edited with cuts and timing changes; fictional demo data, no actual mail sent; not real model or desktop glance validation. Screen recording completed before voice synthesis.",
+  "duration_seconds": 120,
+  "resolution": [
+    1080,
+    1920
+  ],
+  "frames": 3600,
+  "voice": {
+    "provider": "Microsoft Edge online TTS",
+    "id": "zh-CN-XiaoyiNeural",
+    "rate": "-3%",
+    "pitch": "+8Hz",
+    "language": "Mandarin Chinese"
+  },
+  "video_sha256": "411c26d80e96506aadabe113da0c60148abc6cd567087fdcad0bbcb32db9dd9c",
+  "captions_sha256": "f0de89b7c35a7954fe753de7a36ff5ebe0c7afc849560c40dfaeaf77e6e68f0b",
+  "verification": {
+    "decode_errors": 0,
+    "subtitle_cues": 31,
+    "audio_peak_db": -1.5,
+    "video_visual_checks": [
+      "original quote",
+      "edited draft",
+      "15:30 to 15:20 same proposal",
+      "single updated calendar entry",
+      "order and shipment source"
+    ]
+  },
+  "source_tag": "v0.3.8",
+  "source_commit": "3b21fc730aa7d2ffd42b4a694a26635cf1d25837",
+  "raw_recordings": [
+    {
+      "file": "raw-recording.mov",
+      "sha256": "09c3d109cc2471eed1622dc098c87234773a49da415c6cc78ccde6fca25333e3"
+    },
+    {
+      "file": "raw-followup.mov",
+      "sha256": "24d972fcfd4a67c56c85d3259a9df4905ac27db5c4747f3499980e2d708c7215"
+    }
+  ],
+  "edit_decisions": [
+    {
+      "scene": 0,
+      "title": "你好，知信",
+      "output_start": 0,
+      "output_duration": 12,
+      "capture": "raw-recording.mov",
+      "capture_start": 0,
+      "capture_end": 12,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 8.4,
+      "audio_tempo": 0.94
+    },
+    {
+      "scene": 1,
+      "title": "一眼看清重要来信",
+      "output_start": 12,
+      "output_duration": 12,
+      "capture": "raw-recording.mov",
+      "capture_start": 30,
+      "capture_end": 42,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 10.296,
+      "audio_tempo": 0.94
+    },
+    {
+      "scene": 2,
+      "title": "先核对，再决定",
+      "output_start": 24,
+      "output_duration": 16,
+      "capture": "raw-recording.mov",
+      "capture_start": 61,
+      "capture_end": 77,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 13.536,
+      "audio_tempo": 0.94
+    },
+    {
+      "scene": 3,
+      "title": "回复，写成你的语气",
+      "output_start": 40,
+      "output_duration": 14,
+      "capture": "raw-recording.mov",
+      "capture_start": 133.6,
+      "capture_end": 147.6,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 12.456,
+      "audio_tempo": 0.94
+    },
+    {
+      "scene": 4,
+      "title": "确认结果看得见",
+      "output_start": 54,
+      "output_duration": 11,
+      "capture": "raw-followup.mov",
+      "capture_start": 5.8,
+      "capture_end": 10.8,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 9.696,
+      "audio_tempo": 0.9413592233009708
+    },
+    {
+      "scene": 5,
+      "title": "安排，好好记下来",
+      "output_start": 65,
+      "output_duration": 9,
+      "capture": "raw-followup.mov",
+      "capture_start": 11.1,
+      "capture_end": 15.9,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 8.232,
+      "audio_tempo": 0.9918072289156625
+    },
+    {
+      "scene": 6,
+      "title": "新通知，更新同一张卡",
+      "output_start": 74,
+      "output_duration": 15,
+      "capture": "raw-followup.mov",
+      "capture_start": 20.7,
+      "capture_end": 32.2,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 13.68,
+      "audio_tempo": 0.9566433566433565
+    },
+    {
+      "scene": 7,
+      "title": "只留一条最新安排",
+      "output_start": 89,
+      "output_duration": 11,
+      "capture": "raw-followup.mov",
+      "capture_start": 31.8,
+      "capture_end": 44.9,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 10.656,
+      "audio_tempo": 1.0345631067961165
+    },
+    {
+      "scene": 8,
+      "title": "物流消息，也有依据",
+      "output_start": 100,
+      "output_duration": 12,
+      "capture": "raw-followup.mov",
+      "capture_start": 50.5,
+      "capture_end": 72.3,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 11.232,
+      "audio_tempo": 0.9939823008849556
+    },
+    {
+      "scene": 9,
+      "title": "小小助手，安心陪伴",
+      "output_start": 112,
+      "output_duration": 8,
+      "capture": "raw-followup.mov",
+      "capture_start": 72.8,
+      "capture_end": 84.3,
+      "voice": "zh-CN-XiaoyiNeural",
+      "voice_duration": 6.816,
+      "audio_tempo": 0.94
+    }
+  ]
+}

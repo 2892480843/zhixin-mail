@@ -1,0 +1,15 @@
+{
+  "submitted_on": "2026-10-14",
+  "release": "https://github.com/2892480843/zhixin-mail/releases/tag/v0.3.8",
+  "video": "https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.mp4",
+  "comments": {
+    "apphub": "https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6157246168",
+    "team": "https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6157246562"
+  },
+  "readback_exact": true,
+  "download_digest_matches": true,
+  "previous_assets_retained": true,
+  "tag_retained": true,
+  "media_scope": "edited native demo-window recording with fictional data; no real SMTP or model/glance validation",
+  "acceptance_scope": "Public materials posted; organizer acceptance or scoring not confirmed"
+}

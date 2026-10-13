@@ -64,6 +64,17 @@
 当前 77 项回归与 21 页原生验证验证软件行为，不是模型准确率。更早邮件的重复主题缺少可证明的顺序时分别保留，手工草稿可在原文区域查看；不猜先后，也不声称覆盖全邮箱。
 
 
-### 最新版界面截图演示
+### 两分钟普通话操作视频（最新展示材料）
+
+[观看／下载两分钟视频](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.srt) · [媒体验证记录](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/two-minute-mandarin-v0.3.8.json)
+
+知信 0.3.8 实际原生窗口操作录屏，先录制、后配普通话女声；温暖生活助手风格，烧录中文字幕。时长 **120 秒**，1080×1920，H.264/AAC。展示收件箱 → 邮件原文核对 → 回复草稿 → 演示确认 → 补充通知更新同一张卡 → 单条日程更新 → 物流原文追踪。
+
+素材在 macOS 的独立 card-host 窗口录制，使用内置虚构数据，剪辑包含切换与速度调整；非未剪辑连续录像，不发送真实邮件，不代表真实模型、SMTP 送达或桌面 glance 验证。日程为应用内记录。完整解码无错误，公开下载文件与本机逐字节一致。
+
+视频 SHA256：`411c26d80e96506aadabe113da0c60148abc6cd567087fdcad0bbcb32db9dd9c`。视频对应原固定标签 `v0.3.8` / `3b21fc730aa7d2ffd42b4a694a26635cf1d25837`；原标签、安装包及收据保持不变，新增视频不属于安装包来源证明范围。本次提交为后续展示补充材料，是否接收或纳入评审请赛务确认。
+
+
+### 历史界面截图演示
 
 [48 秒原生界面截图演示（0.3.8）](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.srt)。这是来自已验证 card-host 场景的截图序列，使用内置虚构来信；非连续录屏，不证明真实邮箱收发或模型质量。MP4 含默认字幕轨，播放器未显示时可载入附带 SRT 字幕。原安装包和标签未替换，新增媒体不属于安装包签名证明范围。
