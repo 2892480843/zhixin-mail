@@ -1,0 +1,17 @@
+{
+  "submitted_on": "2026-10-14",
+  "bilibili_url": "https://www.bilibili.com/video/BV1qfpk6GEjX/",
+  "bvid": "BV1qfpk6GEjX",
+  "bilibili_metadata": {
+    "title": "zhixin-two",
+    "duration_seconds_reported": 121,
+    "state": 0,
+    "api_code": 0
+  },
+  "verification_scope": "Bilibili public metadata returned OK. User-supplied online link; full streamed media content and equivalence to original MP4 not verified. Original downloaded MP4 remains the verified 120-second artifact.",
+  "apphub_comment": "https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6157246168",
+  "team_comment": "https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6157246562",
+  "acceptance_scope": "Supplementary video link posted; organizer acceptance and scoring not confirmed",
+  "readback_exact": true,
+  "existing_release_assets_retained": true
+}

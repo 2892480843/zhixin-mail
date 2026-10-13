@@ -66,7 +66,7 @@
 
 ### 两分钟普通话操作视频（最新展示材料）
 
-[观看／下载两分钟视频](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.srt) · [媒体验证记录](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/two-minute-mandarin-v0.3.8.json)
+[B 站在线播放](https://www.bilibili.com/video/BV1qfpk6GEjX/) · [原视频下载（120 秒）](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-two-minute-mandarin-v0.3.8.srt) · [媒体验证记录](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/two-minute-mandarin-v0.3.8.json)
 
 知信 0.3.8 实际原生窗口操作录屏，先录制、后配普通话女声；温暖生活助手风格，烧录中文字幕。时长 **120 秒**，1080×1920，H.264/AAC。展示收件箱 → 邮件原文核对 → 回复草稿 → 演示确认 → 补充通知更新同一张卡 → 单条日程更新 → 物流原文追踪。
 

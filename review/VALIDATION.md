@@ -147,3 +147,8 @@ git diff --check
 使用内置虚构数据，含切换剪辑和速度调整，未发送真实邮件。此媒体不验证真实模型、SMTP 送达或桌面 glance；日程仍为应用内记录。应用来源保持 v0.3.8 固定标签及安装包，本次仅补充展示媒体。
 
 视频已补充至 [App Hub #106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6157246168) 和 [云上码术队伍提交帖](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6157246562)；Release、正文与评论回读完全一致，原 6 项资产及固定 tag 均保留。公开提交回执见 [two-minute-video-submission-v0.3.8.json](evidence/two-minute-video-submission-v0.3.8.json)。不代表赛务已接收或纳入评分。
+
+
+### B 站在线视频入口补充
+
+用户提供的 [B 站视频](https://www.bilibili.com/video/BV1qfpk6GEjX/) 已补充到 Release、App Hub #106 正文与视频评论、云上码术队伍入口与视频评论，五处回读内容与提交文件完全一致。保留原 MP4、字幕及验证记录。B 站公开元数据接口返回成功，标题为 `zhixin-two`，平台报告时长 121 秒；原 MP4 已验证为 120 秒。未将公开元数据等同视频内容逐帧或播放验收，比赛接收及评分仍由赛务决定。见 [B 站提交回执](evidence/bilibili-video-submission-v0.3.8.json)。
