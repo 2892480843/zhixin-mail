@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "version": "0.3.8",
+  "source_tag": "v0.3.8",
+  "source_commit": "3b21fc730aa7d2ffd42b4a694a26635cf1d25837",
+  "duration_seconds": 48,
+  "dimensions": "1080x1920",
+  "codec": "H.264",
+  "subtitles": "Chinese, default soft subtitle track",
+  "sha256": "bccc799aa8c7731727ac6c05ea0cd25b50c6f5071ec63e1c82de854461734033",
+  "bytes": 934618,
+  "scope": "Native card-host screenshot sequence with fictional fixtures, not continuous recording or real mail round trip.",
+  "frames": [
+    {
+      "scene": "01-inbox",
+      "sha256": "8866e37b168fd9f523d337eba430f51ef415711e01323228640c923e396320d0"
+    },
+    {
+      "scene": "09-staged-initial",
+      "sha256": "97dace5ab234c291655e9bbb00fcdcd0bb0dd307f37dd13d4ac405d3624d0a43"
+    },
+    {
+      "scene": "10-staged-update",
+      "sha256": "aa487479d3d7d2eee5ce6941958861239bf81afdd98221faf9db23034ec5683f"
+    },
+    {
+      "scene": "04-complete",
+      "sha256": "f1f30b67e29e40a4287f0782b06525fc252d0220d21c49d2390798a11db42fae"
+    },
+    {
+      "scene": "12-calendar",
+      "sha256": "dc8adc24ba2c69abcfffb8fe3c408a5df3ada3aa04354918c8c165e2b47e4a65"
+    },
+    {
+      "scene": "15-order",
+      "sha256": "0a70f5a64c27ab054a502e79dde2468f2f5fc29435d842743bcbfff4b1e173a3"
+    },
+    {
+      "scene": "08-history",
+      "sha256": "9f5ee6058f13f68c87a560e87806c60f66c8ca522a99252fead49dc86f04bd9a"
+    },
+    {
+      "scene": "20-connection",
+      "sha256": "5a39e208d21399ae440d54483d43100b6356997b6590a00d6adc37044493375b"
+    }
+  ],
+  "full_decode_verified": true
+}

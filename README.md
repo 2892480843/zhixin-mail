@@ -116,3 +116,8 @@ python3 tests/test_finale_flow.py --deps ../../octosense-ws/OctoSense-App-Hub/ta
 [App Hub 提交 #106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106) · [队伍云上码术提交 #13](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13) · [支持](SUPPORT.md) · [评审问答](review/ANSWERS.md)
 
 Apache License 2.0，见 [LICENSE](LICENSE)。
+
+
+### 最新版界面截图演示
+
+[48 秒原生界面截图演示（0.3.8）](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.srt)。这是来自已验证 card-host 场景的截图序列，使用内置虚构来信；非连续录屏，不证明真实邮箱收发或模型质量。MP4 含默认字幕轨，播放器未显示时可载入附带 SRT 字幕。原安装包和标签未替换，新增媒体不属于安装包签名证明范围。

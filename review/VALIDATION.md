@@ -133,3 +133,8 @@ git diff --check
 [App Hub 后续提交](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6152353565)、[云上码术队伍更新](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13#issuecomment-6152354145) 已发表，正文与本机提交材料回读一致。公开 [Release](https://github.com/2892480843/zhixin-mail/releases/tag/v0.3.8) 说明回读一致，3 个资产保留。不宣称管理员已准入或新评分已出。
 
 发布后仅补充 bundle 外的当前讲稿、界面说明与发布回执；没有移动标签或替换已公开的安装包。匿名公开结果见 [public-release-v0.3.8.json](evidence/public-release-v0.3.8.json)。真实 SMTP、送达和模型质量边界如前。
+
+
+### 最新版展示媒体
+
+新增 48 秒 / 1080×1920 原生界面截图演示，采用 8 个 card-host 虚构数据场景，H.264 编码及默认中文字幕轨；完整视频解码成功。正式上传后下载 SHA256 与本机一致：`bccc799aa8c7731727ac6c05ea0cd25b50c6f5071ec63e1c82de854461734033`。各源截图摘要见 [native-preview-v0.3.8.json](evidence/native-preview-v0.3.8.json)。这是静态截图序列，不是连续操作录屏，也不能替代真实宿主 SMTP、送达、模型或 glance 演示。
