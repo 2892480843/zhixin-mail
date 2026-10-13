@@ -1,3 +1,7 @@
 .local-state/
 .tall-state/
 .DS_Store
+build/
+__pycache__/
+*.pyc
+output/

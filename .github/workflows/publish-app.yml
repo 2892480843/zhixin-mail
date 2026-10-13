@@ -35,7 +35,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           repository: OctoSense-org/OctoSense-App-Hub
-          ref: ba36df0505e198f998201af312ff5184df98cae9
+          ref: 386359153ed6377b5f047bd9ed2767a6a2ac2bc7
           path: tools/app-hub
           persist-credentials: false
       - name: Read the pinned native runtime

@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-14",
+  "platform": "macOS Darwin arm64",
+  "host": "OctoSense desktop 0.1.0-rc.6",
+  "app_version": "0.3.7",
+  "installed_source_matches_prepared": true,
+  "capabilities_changed": false,
+  "verified": [
+    "QQ SMTP/IMAP service enabled",
+    "Existing authorization code entered into native host without storing it in project files",
+    "Host sign-in accepted and real inbox read",
+    "Host update through App Hub completed",
+    "New app automatically reused existing mail account",
+    "10 recent real messages displayed",
+    "4 proposals displayed, accuracy not independently scored",
+    "Aggregate glance card visible",
+    "Sending history empty"
+  ],
+  "not_verified": [
+    "Actual SMTP sending and delivery",
+    "Configured model analysis",
+    "Competition demonstration video"
+  ],
+  "privacy": "No email content, authorization code, browser SID or account credentials recorded in this receipt."
+}

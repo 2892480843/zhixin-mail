@@ -7,9 +7,9 @@
   ],
   "id": "zhixin-mail",
   "integrity": {
-    "bundle_blake3": "5e34297e60593e488e874e797db6bac352effd333b0249341f4c2ab54e2151d4"
+    "bundle_blake3": "84cce05985d96bd0a2e612ff2a591658c87095d7fa5b515bbd61e543255fcd84"
   },
   "name": "知信",
   "schema": 1,
-  "version": "0.2.1"
+  "version": "0.3.7"
 }

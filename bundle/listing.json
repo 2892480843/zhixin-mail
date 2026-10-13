@@ -1,18 +1,31 @@
 {
   "schema": 1,
-  "subtitle": "从来信中识别安排与变化，确认后执行",
-  "description": "知信读取你的来信，识别其中的安排与变化（时间调整、新日程、回复请求），提出日程更新和可直接修改的回复草稿，等你确认后才执行。「始终允许」规则同时限定发件人与动作，可随时撤销；同一事项的后续来信会更新同一张提案卡。每条提取都附邮件原文引用，未逐字核对的内容明确标注。",
+  "subtitle": "来信变成待确认的下一步，变化有原文，发送经审阅",
+  "description": "知信将来信中的安排、变化与回复请求整理成提案，优先显示旧→新对比、原文引用和可编辑草稿。模型提取的变化值、日程字段与物流编号须在引用中逐字出现，引用须逐字命中邮件原文，核对失败会清除或隐藏对应值。同一事项后续通知更新同一张卡，已确认后出现变化会重新待审阅；已处理邮件去重，避免重复同步覆盖最新安排。用户主动打开宿主审阅，核对并批准发送；只有明确接受回执才完成提案，另存准确提交的发送记录。规则按发件人与动作准备草稿、可撤销，每次发送仍需审阅。日程板为应用内记录，桌面卡只显示待办数。演示与真实邮箱状态分开保存，分步演示不发送真实邮件。",
   "category": "productivity",
-  "keywords": ["邮件", "日程", "助理", "mail", "calendar", "agent"],
-  "screenshots": ["screenshots/01-inbox.png", "screenshots/02-detail.png", "screenshots/03-board.png"],
+  "keywords": [
+    "邮件",
+    "日程",
+    "助理",
+    "mail",
+    "calendar",
+    "agent"
+  ],
+  "screenshots": [
+    "screenshots/01-inbox.png",
+    "screenshots/02-detail.png",
+    "screenshots/03-board.png"
+  ],
   "icon": "assets/icon.svg",
-  "platforms": ["macos"],
+  "platforms": [
+    "macos"
+  ],
   "publisher": {
     "name": "ysmsone",
-    "support": "https://github.com/2892480843/zhixin-mail/blob/main/SUPPORT.md",
-    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail/blob/main/PRIVACY.md"
+    "support": "https://github.com/2892480843/zhixin-mail/blob/v0.3.7/SUPPORT.md",
+    "privacy_policy_url": "https://github.com/2892480843/zhixin-mail/blob/v0.3.7/PRIVACY.md"
   },
-  "release_notes": "来信识别、日程变更提案、回复草稿、单次确认与发件人+动作维度的长期授权、同一事项后续来信合并更新、日程板与事项去重、订单物流追踪（同一订单号合并更新）、桌面卡片。每条提取附原文引用并逐字核对。",
+  "release_notes": "0.3.7：真实收件同步不再静默跳过读取失败的来信，显示未读取数量和刷新重试提示，保留已有提案；下一次同步清除旧警告。保留温暖生活助手界面、日期/时间分行、原文核对、账号隔离和宿主发送审阅。真实邮箱须在宿主认证，授权码由用户在官方邮箱设置生成。",
   "age_rating": "all",
   "license": "Apache-2.0"
 }

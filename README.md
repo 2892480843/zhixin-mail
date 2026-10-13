@@ -1,89 +1,105 @@
 # 知信 · ZhixinMail
 
-> 从来信中识别安排与变化，提出日程更新和回复草稿，确认后执行。
+从来信中识别安排与变化，提出应用内日程更新和可编辑回复草稿，由用户审阅后发送。
 
-GOSIM 2026 智能体应用黑客松 · 邮件赛道参赛作品（OctoSense 脚本应用）。
+GOSIM 2026 智能体应用黑客松 · 邮箱赛道。当前版本 **0.3.7**。
 
-## 演示视频
+## 评审与本次修复
 
-[zhixin-demo-v0.2.0.mp4（36 秒，中文解说）](https://github.com/2892480843/zhixin-mail/releases/download/v0.2.0/zhixin-demo-v0.2.0.mp4)：识别 → 提案 → 授权 → 执行 → 日程板 / 物流追踪，card-host 实拍界面逐帧采集。
+[App Hub #106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6077981957) 对 v0.2.1 / 0928575 给出初赛入围、79/100。0.2.2 修复了发送通道；0.3.7 进一步优化可靠性与决赛演示，本次发布版本为 0.3.7；尚未获得新评分。
 
-## 它做什么
+- 发送改用 `mail.review_send`，用户点击「审阅并发送回复」后，由宿主显示收件人、主题和准确正文；须在宿主批准后才提交邮件。
+- 只有返回明确的 `accepted: true` 才完成提案并更新应用内日程板。这是邮件服务接受发送，不等于收件方已收到。
+- 取消、失败、缺少接受回执时保留提案和编辑后的草稿；不自动重试。结果不明时先核对已发送邮件和收件方，避免重复发送。
+- 每次只允许一个审阅请求；旧版提案的回执不会完成后续来信产生的新版提案。
+- 发件人 + 动作规则仅准备草稿；包括历史保存的规则在内，每次发送仍需用户主动审阅，规则页可撤销。
+- 执行完成后立即更新桌面待办卡；全部完成时撤下卡片。保留 `card_id`、`title`、`script`，宿主不支持或更新失败会如实显示。
+- 演示数据始终标注，完成态明确显示「未发送」。
 
-一封学校来信把周四接孩子的时间从 16:00 改为 15:30。知信读完这封信，把两个下一步放到你面前：一项日历变更（16:00 → 15:30）和一封可直接修改的确认回复。你改完草稿，选择「仅确认这一次」或「始终允许这类操作」，知信才执行。
+## 0.3.7 收件可靠性
 
-完整闭环：
+单封邮件读取失败不再静默跳过：同步结果显示未读取数量与刷新重试提示，保留已有提案；下一次同步清除旧警告。50 项业务回归和新增原生错误场景通过。2026-10-14 已在官方 RC6 完成 QQ 邮箱认证，读取 10 封真实来信并显示桌面待办卡；真实发送与模型质量仍未实测。
 
-1. **识别** — `mail.sync` / `mail.list` / `mail.message` 读取来信；`model.complete` 做结构化提取（事项类型、新旧时间、事件要素、回复草稿），规则引擎在模型不可用时兜底。
-2. **核对** — 每条提取必须附邮件原文引用，且引用逐字出现在正文中（no-facts 护栏）；模型给出但核对不上的内容被丢弃并明确标注「未能在原文中逐字核对」。
-3. **提案** — 变更以旧→新对比卡片呈现；同一事项的后续来信更新同一张提案卡（版本号 +「提案已按新来信调整」），不会每封通知都生成一张新卡。
-4. **授权** — 「确认并发送」只处理这一封；「始终允许」生成发件人 + 动作维度的规则（如「橡树学校的安排变更 → 自动发送确认回复」），不扩展到其他邮件，授权规则页可随时撤销。
-5. **执行** — 确认后 `mail.send` 发送回复，提案进入完成态并保留已发送内容；待办数量同步到桌面 glance 卡片（`glance.publish`，shell 环境生效，card-host 中静默降级）。
-6. **物流追踪** — 订单邮件提取订单号 / 运单号 / 预计送达，三步进度可视化；后续发货、送达邮件更新同一份追踪卡，不新增重复卡片。
-7. **日程板** — 确认过的日程提案写入应用内日程板；新变更先匹配已有事项（标题匹配去重），显示「将更新已有日程，不会新增重复日程」。
+## 0.3.6 决赛优化
 
-## 与关键词匹配方案的区别
+采用用户选择的「温暖生活助手」界面：奶油色背景、柔和蓝与鼠尾草绿，清楚显示原安排/新安排、原文引用与草稿；收件箱压缩重复说明，长主题与时间分行，补齐欢迎与空状态。样式与布局说明见 [UI-DESIGN.md](review/UI-DESIGN.md)。
 
-同赛道常见做法是用关键词 + 正则做本地匹配。知信的第一分析引擎是设备上的 `model.complete`（结构化 JSON 输出、schema 校验、逐字引用核对），关键词引擎只在模型服务不可用时兜底；演示数据则保证 card-host 无服务环境下也能完整评审闭环。
+0.3.4 在演示收件箱和待办页增加「连接真实邮箱」。登录成功后先保存旧草稿，再清空旧邮件和编辑状态，加载对应账号记录；同步失败也不显示其他账号或演示邮件。取消登录保留原状态，同步或发送审阅时禁止切换。
 
-## 运行与评审
+此前真实 RC6 排练补齐桌面卡批量发布：一批来信仅发布一次，避免每分钟 6 次限流；卡片根视图使用内容高度，修复展开空白。摘要明确区分演示，打开应用使用宿主右箭头。
+
+- 提案页优先展示变化、原文证据、可编辑多行草稿与明确的审阅入口；完整原文按需展开。
+- 模型引用保留原文换行；新旧值、日程字段与物流编号必须逐字存在于对应引用，核对失败清除或隐藏对应字段。缺失、错误类型的模型字段安全回退。
+- 演示与真实账号分别保存状态；真实状态绑定宿主账号，不串规则和记录。旧版未绑定账号的数据保留，请重新同步。
+- 草稿切页保存；新通知到达时编辑器跟随新版，旧编辑事件不能覆盖新版草稿。
+- 已完成事项后续来信重新打开同一张提案；保留全部来源邮件标识，重复同步和较旧邮件失败重试不覆盖已知新版。
+- 独立「发送记录」保留获接受提交的准确正文与回执标识；演示操作不计入。
+- 分步演示：初始通知 → 模拟确认 → 补充通知重开同卡 → 再确认更新已有日程 → 物流送达。
+
+[三分钟讲稿与答辩](review/FINALE-PITCH.md) · [宿主准备](review/HOST-SETUP.md) · [本地验证](review/VALIDATION.md)
+
+## 邮箱赛道任务
+
+一封学校来信把接孩子的时间从 16:00 改为 15:30，后续来信再改为 15:20。知信将后续通知合并到同一张提案卡，显示原文引用和旧→新对比，同时准备可编辑回复。用户核对并完成宿主审阅后，应用记录发送接受回执，更新应用内日程板和桌面待办数量。
+
+1. **读取**：`mail.sync/list/message` 获取来信，`model.complete` 一次性结构化抽取；模型不可用时使用规则兜底。
+2. **核对**：引用与邮件原文比对；未核对的新旧值不用于变化对比，界面显示核对失败。
+3. **提案**：同一事项更新同一张卡；订单发货与送达按同一订单更新追踪。
+4. **审阅**：修改草稿后主动打开宿主审阅，批准或取消。
+5. **结果**：明确接受回执后完成提案；应用内日程板按标题更新已有事项；glance 桌面卡同步待办数。
+
+## 运行环境
+
+- 真实发送需要 **OctoSense desktop RC2 或更新、支持第三方应用 `mail.review_send` 的宿主**，以及授予知信使用的邮箱账号。RC1 / beta.2 的第三方应用发送不支持；应升级宿主，不回退到旧接口。
+- 当前只声明 macOS。宿主邮件服务和模型需由用户配置；应用不接触账号密码或模型密钥。
+- `card-host` 没有 mail/model/glance 服务，用于原生界面演示和本地验证；该环境不会发送邮件或显示真实桌面卡片。
+- 系统日历集成不在本应用范围内：日程板仅保存应用内记录，不宣称已更新系统日历。
+
+接口依据：[App Flow HOST-SERVICES](https://github.com/OctoSense-org/OctoSense-App-Flow/blob/main/docs/HOST-SERVICES.md)、[宿主审阅实现](https://github.com/OctoSense-org/OctoSense/blob/c5e2eb3ecd17016ad88f0391b5a5a7efcfb6a441/apps/mail/host-service/src/public_review.rs)。
+
+在项目上层已有 `octosense-ws/` 时，从本仓库运行：
 
 ```sh
-# 环境：OctoScript-App-Design-Flow + OctoSense-App-Hub（见官方 QUICKSTART）
-tools/octo run apps/zhixin-mail/bundle --port 8141 --detach
-tools/octo shot 8141 shot.png
-tools/octo check apps/zhixin-mail/bundle
+../../octosense-ws/OctoScript-App-Design-Flow/tools/octo run bundle --port 8141 --hidden --detach
+../../octosense-ws/OctoScript-App-Design-Flow/tools/octo shot 8141 shot.png
+../../octosense-ws/OctoScript-App-Design-Flow/tools/octo check bundle
+curl --fail http://127.0.0.1:8141/quit
 ```
 
-card-host 中没有邮件与模型服务，应用自动进入**演示模式**：内置 6 封来信（学校时间变更 + 同一事项的后续补充通知、会议邀请、订单发货与送达、英文改期），完整覆盖识别 → 提案 → 授权 → 执行 → 日程板 / 物流追踪闭环。
+从零安装工具链按官方 [Quickstart](https://github.com/OctoSense-org/OctoSense-App-Flow/blob/main/docs/QUICKSTART.md) 操作；路径按实际工作区调整。
 
-3 分钟评审路径：
+## 本地回归与演示
 
-1. 启动 → 收件箱（识别状态 chips、同一事项「第 2 次更新」标记）
-2. 打开橡树学校来信 → 变更卡片（红绿对比 + 原文引用 + 更新提示）
-3. 修改草稿 → 「确认并发送回复」→ 完成态（待办 3 → 2）
-4. 打开张明远来信 →「始终允许此类操作」→ 授权规则页可见、可撤销
-5. 「刷新」重放演示 → 橡树学校来信命中规则自动执行（待办看板只剩 2 项）
+```sh
+python3 tests/test_send_flow.py --deps ../../octosense-ws/OctoSense-App-Hub/target/release/deps
+python3 tests/test_finale_flow.py --deps ../../octosense-ws/OctoSense-App-Hub/target/release/deps
+```
 
-## 能力与隐私
+测试使用已构建的固定 Splash 解释器，执行 `bundle/main.splash` 的业务函数，只替换 host/文件系统/界面边界；不会接入邮箱。涵盖接受回执、取消、重复点击、更新中提案、规则与桌面卡等场景。
 
-| 能力 | 用途 |
+演示路径：收件箱点击「开始分步演示」→ 学校变更提案 → 编辑草稿 →「演示确认（不发送）」→ 日程板；回到收件箱，点击「模拟学校补充通知」→ 同一卡重新待确认 → 再确认 → 日程板更新已有事项；回收件箱继续模拟物流送达。刷新会重置该分步演示。
+
+[历史视频 v0.2.0（36 秒）](https://github.com/2892480843/zhixin-mail/releases/download/v0.2.0/zhixin-demo-v0.2.0.mp4) 仅供历史 UI 参考；其中自动发送与完成措辞已被 0.2.2 修正，不是新版本或真实邮件送达证据。
+
+**真实宿主验收与录像步骤：** [review/REAL-HOST-DEMO.md](review/REAL-HOST-DEMO.md)。2026-10-14 在官方 OctoSense desktop 0.1.0-rc.6（构建 `20261011.114033`，源码 `f9f6fea9`）中完成 QQ 邮箱认证，并通过独立本机 App Hub 将知信更新到 0.3.7；安装源码与当前 bundle 一致。重新打开后保留连接，收件箱显示 10 封真实来信，待办与 glance 卡片显示 4 项待确认。计数和功能连通不代表提案准确率；真实 SMTP 发送、收件方送达、模型输出及连续录像仍未验收。0.3.3 的演示卡片数量 3→2→1→0 记录保留为历史证据。
+
+## 数据与权限
+
+| 能力 | 使用范围 |
 | --- | --- |
-| `mail` | 读取收件箱、标记已读、发送确认回复（账号由宿主 sheet 登录，应用不接触密码） |
-| `model` | 一次性结构化分析来信（设备配置的 AI 提供方，应用看不到 provider 与密钥） |
-| `storage` | 保存提案状态与授权规则（设备沙箱内） |
-| `glance` | 待确认数量发布到桌面卡片 |
+| `mail` | 读取授权邮箱、标记已读、宿主审阅发送 |
+| `model` | 邮件标题、发件地址、正文交给宿主配置的模型提供方分析 |
+| `storage` | 沙箱保存提案、规则、日程与订单状态 |
+| `glance` | 自动发布/更新待确认数，不包含邮件正文或地址 |
 
-邮件正文只发给设备自己配置的 AI 提供方做一次性分析，不离开设备到任何第三方服务器；无网络 host 声明。
+应用无自建网络接口。远程模型和邮件服务器可接收对应数据；不宣称数据不会离开设备。详见 [PRIVACY.md](PRIVACY.md)。
 
-## 已知边界
+## 发布与比赛材料
 
-- 日历写入：App Hub 暂无面向商店应用的 calendar 能力，日程更新以提案卡形式呈现，回复执行后日历侧由用户在系统日历中确认（与当前平台能力一致，见 OctoSense 文档）。
-- `card-host` 无 mail/model/glance 服务：演示模式兜底；真实链路在 OctoSense shell（desktop）中验证。
-- 规则引擎兜底只做定性识别（类型 + 引用句），新旧值对比依赖 model.complete 或演示数据。
+版本号对应新的不可变 tag `v0.3.7`；GitHub 发布工作流固定 App Hub 工具修订 `386359153ed6377b5f047bd9ed2767a6a2ac2bc7`，生成带来源证明的安装包。发布结果与文件摘要以 [Release](https://github.com/2892480843/zhixin-mail/releases/tag/v0.3.7) 中的 `release-receipt.json` 和成功工作流为准。App Hub 管理员另行受理和上架，发布不等于准入。
 
-## 提交与发布状态
+[官网](https://create.gosim.org/agenticapp26/) 邮箱场景与本项目相符。官网当前列明复赛 10 月 9 日冻结、10 月 12 日线上决赛；本次 10 月 14 日更新是否接收为后续材料需赛务确认，不宣称进入已冻结评分。
 
-| 项 | 值 |
-| --- | --- |
-| App Hub 提交 issue | [OctoSense-App-Hub#106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106)（Submit zhixin-mail，待管理员受理） |
-| 初赛仓库提交 | [hackathon-agenticapp26#13](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13)（队伍：云上码术） |
-| 发布通道 | `publisher-github-v1`：推送 `v<manifest.version>` tag → `.github/workflows/publish-app.yml` 生成经 GitHub 证明的 release pack |
-| 准入门禁 | `hub check` PASSED（见 `review/GATE.txt`），BLAKE3 见 release 里的 receipt |
-| 评审问答 | `review/ANSWERS.md`（`hub scan` 的 7 问，逐条附源码引用） |
-| 隐私 / 支持 | [PRIVACY.md](PRIVACY.md) · [SUPPORT.md](SUPPORT.md) |
-
-上架由 App Hub 管理员在审核后执行受保护目录工作流完成，开发者不直接改 `catalog.json` / `index/` / `artifacts/`。
-
-## 目录
-
-```
-bundle/              提交内容：main.splash / manifest.json / listing.json / assets / screenshots
-.github/workflows/   publish-app.yml：tag push 生成带 GitHub 证明的 release pack
-review/              GATE.txt（门禁输出）+ ANSWERS.md（scan 七问）
-PRIVACY.md SUPPORT.md
-```
-
-## 许可证
+[App Hub 提交 #106](https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106) · [队伍云上码术提交 #13](https://github.com/gosimfoundation/hackathon-agenticapp26/issues/13) · [支持](SUPPORT.md) · [评审问答](review/ANSWERS.md)
 
 Apache License 2.0，见 [LICENSE](LICENSE)。
