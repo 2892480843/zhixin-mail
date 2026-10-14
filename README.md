@@ -129,6 +129,8 @@ Apache License 2.0，见 [LICENSE](LICENSE)。
 视频 SHA256：`411c26d80e96506aadabe113da0c60148abc6cd567087fdcad0bbcb32db9dd9c`。视频对应原固定标签 `v0.3.8` / `3b21fc730aa7d2ffd42b4a694a26635cf1d25837`；原标签、安装包及收据保持不变，新增视频不属于安装包来源证明范围。本次提交为后续展示补充材料，是否接收或纳入评审请赛务确认。
 
 
+B 站平台元数据报告时长为 121 秒；上文 120 秒及文件摘要指 GitHub 原 MP4。未将 B 站元数据等同完整播放或内容一致性验收。
+
 ### 历史界面截图演示
 
 [48 秒原生界面截图演示（0.3.8）](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.mp4) · [中文字幕](https://github.com/2892480843/zhixin-mail/releases/download/v0.3.8/zhixin-native-preview-v0.3.8.srt)。这是来自已验证 card-host 场景的截图序列，使用内置虚构来信；非连续录屏，不证明真实邮箱收发或模型质量。MP4 含默认字幕轨，播放器未显示时可载入附带 SRT 字幕。原安装包和标签未替换，新增媒体不属于安装包签名证明范围。

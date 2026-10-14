@@ -1,0 +1,21 @@
+{
+  "audited_on": "2026-10-14",
+  "bilibili_url": "https://www.bilibili.com/video/BV1qfpk6GEjX/",
+  "bvid_matches_user": true,
+  "team": "云上码术",
+  "track": "邮箱",
+  "version": "0.3.8",
+  "apphub_issue": 106,
+  "team_issue": 13,
+  "team_issue_role": "Preliminary repository submission thread; current update is supplementary media, not confirmed final-round acceptance.",
+  "corrections": [
+    "Added explicit team, track and GitHub repository fields to both latest video comments.",
+    "Clarified platform-reported 121 seconds versus verified original MP4 duration 120 seconds."
+  ],
+  "updated_bodies_readback_exact": true,
+  "organizer_acceptance_confirmed": false,
+  "media_limitation": "Fictional-data native card-host recording; not proof of real mail send/receipt, model completion or desktop glance.",
+  "official_schedule_source": "https://create.gosim.org/agenticapp26/",
+  "official_award_submission_deadline": "2026-10-09 23:59 Asia/Shanghai",
+  "latest_external_apphub_comment": "https://github.com/OctoSense-org/OctoSense-App-Hub/issues/106#issuecomment-6077981957"
+}
