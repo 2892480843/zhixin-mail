@@ -109,6 +109,8 @@ python3 tests/test_finale_flow.py --deps ../../octosense-ws/OctoSense-App-Hub/ta
 
 ## 发布与比赛材料
 
+[复赛提交汇总](review/SUBMISSION.md)：固定版本、初赛后的 12 项累计更新、验证结果及 B 站演示入口。
+
 版本号对应新的不可变 tag `v0.3.8`；GitHub 发布工作流固定 App Hub 工具修订 `386359153ed6377b5f047bd9ed2767a6a2ac2bc7`，生成带来源证明的安装包。发布结果与文件摘要以 [Release](https://github.com/2892480843/zhixin-mail/releases/tag/v0.3.8) 中的 `release-receipt.json` 和成功工作流为准。App Hub 管理员另行受理和上架，发布不等于准入。
 
 [官网](https://create.gosim.org/agenticapp26/) 邮箱场景与本项目相符。官网当前列明复赛 10 月 9 日冻结、10 月 12 日线上决赛；本次 10 月 14 日更新是否接收为后续材料需赛务确认，不宣称进入已冻结评分。
